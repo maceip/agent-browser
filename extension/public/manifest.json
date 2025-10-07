@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "Agent Browser",
+  "version": "0.1.0",
+  "description": "Browser automation for AI agents via MCP",
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAy2rMFnRHayOShJR5UMCQ9picdLw+AA30doglC2onxKCiGnm4Cct0dFwZODbwMu8AKCYxTo0Dr448iO1myWqY54anNyoskURiiibBkD2Qyun+o4px5MvjnNxBNs+ohPbzSxyuy+hQuYEInVanOPUryx9WNuQbOD6anVPv6da8VTbgbn43Bzl/o8TuaEEkZn+zwP8KZtgDD8jk9bAVKB/2ZVgLs1fj2BprOHpdJCyBo2BePk0HSR5I+rQXC3mUClC3eCGlBR66em3xFfHaGCi4g0pWCUwH9Qul74tY7LEsAy7XiAyp1avojP2IZXdgHvsfPSn/T+wM5S90oqgSCKGbbQIDAQAB",
+
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "nativeMessaging"
+  ],
+
+  "host_permissions": [
+    "<all_urls>"
+  ],
+
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+
+  "action": {
+    "default_title": "Agent Browser"
+  },
+
+  "icons": {
+    "16": "icon-16.png",
+    "48": "icon-48.png",
+    "128": "icon-128.png"
+  }
+}

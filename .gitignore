@@ -1,0 +1,35 @@
+# Rust
+/server/target/
+/server/Cargo.lock
+
+# Node/Bun
+node_modules/
+*.log
+
+# Extension build artifacts
+/extension/public/*.js
+/extension/public/*.js.map
+
+# System files
+.DS_Store
+*.swp
+*.swo
+*~
+
+# Temporary files
+*.tmp
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.iml
+
+# Native Messaging Host logs
+/tmp/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
