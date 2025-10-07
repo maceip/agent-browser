@@ -1,0 +1,12 @@
+{
+  "name": "agent-browser",
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "./install-nmh.sh && echo '\n✅ Installation complete!\n\nManual step required:\n1. Open Chrome\n2. Go to chrome://extensions/\n3. Enable Developer mode\n4. Click \"Load unpacked\"\n5. Select: '$(pwd)/extension/public'\n\nThe extension will show ID: snnfbcrozohafhbl (stable)\n'",
+    "build": "cd server && cargo build --release && cd ../extension && bun install && bun run build",
+    "clean": "cd server && cargo clean && cd ../extension && bun run clean && ./uninstall-nmh.sh",
+    "test": "node scripts/test-nmh.js"
+  },
+  "workspaces": ["extension"]
+}

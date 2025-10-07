@@ -21,7 +21,7 @@
         ░
 ```
 
-MCP server for browser automation via Chrome extension.
+mcp-native browser automation, with stealth and performance as primitives
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
