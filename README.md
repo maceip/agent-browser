@@ -1,33 +1,13 @@
-```
-     ▄▄▄        ▄████ ▓█████  ███▄    █ ▄▄▄█████▓
-    ▒████▄     ██▒ ▀█▒▓█   ▀  ██ ▀█   █ ▓  ██▒ ▓▒
-    ▒██  ▀█▄  ▒██░▄▄▄░▒███   ▓██  ▀█ ██▒▒ ▓██░ ▒░
-    ░██▄▄▄▄██ ░▓█  ██▓▒▓█  ▄ ▓██▒  ▐▌██▒░ ▓██▓ ░
-     ▓█   ▓██▒░▒▓███▀▒░▒████▒▒██░   ▓██░  ▒██▒ ░
-     ▒▒   ▓▒█░ ░▒   ▒ ░░ ▒░ ░░ ▒░   ▒ ▒   ▒ ░░
-      ▒   ▒▒ ░  ░   ░  ░ ░  ░░ ░░   ░ ▒░    ░
-      ░   ▒   ░ ░   ░    ░      ░   ░ ░   ░
-          ░  ░      ░    ░  ░         ░
+<img width="505" height="371" alt="macmacmacprime_httpss mj run6JSufMtx_U4_logo_for_browser_auto_e94203ad-baa2-44c0-b14d-17e2aa0b1ac2_2" src="https://github.com/user-attachments/assets/233a0046-3479-45c8-9369-87b71fd03437" />
 
-   ▄▄▄▄    ██▀███   ▒█████   █     █░  ██████ ▓█████  ██▀███
-  ▓█████▄ ▓██ ▒ ██▒▒██▒  ██▒▓█░ █ ░█░▒██    ▒ ▓█   ▀ ▓██ ▒ ██▒
-  ▒██▒ ▄██▓██ ░▄█ ▒▒██░  ██▒▒█░ █ ░█ ░ ▓██▄   ▒███   ▓██ ░▄█ ▒
-  ▒██░█▀  ▒██▀▀█▄  ▒██   ██░░█░ █ ░█   ▒   ██▒▒▓█  ▄ ▒██▀▀█▄
-  ░▓█  ▀█▓░██▓ ▒██▒░ ████▓▒░░░██▒██▓ ▒██████▒▒░▒████▒░██▓ ▒██▒
-  ░▒▓███▀▒░ ▒▓ ░▒▓░░ ▒░▒░▒░ ░ ▓░▒ ▒  ▒ ▒▓▒ ▒ ░░░ ▒░ ░░ ▒▓ ░▒▓░
-  ▒░▒   ░   ░▒ ░ ▒░  ░ ▒ ▒░   ▒ ░ ░  ░ ░▒  ░ ░ ░ ░  ░  ░▒ ░ ▒░
-   ░    ░   ░░   ░ ░ ░ ░ ▒    ░   ░  ░  ░  ░     ░     ░░   ░
-   ░         ░         ░ ░      ░          ░     ░  ░   ░
-        ░
-```
-
-mcp-native browser automation, with stealth and performance as primitives
+    mcp-native browser automation
+    stealth + performance as primitives
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-Agent Browser is a Model Context Protocol (MCP) server that provides browser automation capabilities through a Chrome extension. Unlike traditional browser automation tools that rely on external processes, Agent Browser uses native Chrome extension APIs for reliable, always-on automation.
+Agent Browser is an undetectable browser automation platform for agents that want to browse the web. Its designed to be 10x faster than browser-use / playwright. It includes a native messaging host, a rust MCP <> websocket relay and a passkey proxy.
 
 ## Features
 
