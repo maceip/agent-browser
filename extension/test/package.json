@@ -1,0 +1,16 @@
+{
+  "name": "agent-browser-passkey-test",
+  "version": "1.0.0",
+  "description": "WebAuthn passkey test server and automation script",
+  "type": "module",
+  "scripts": {
+    "dev": "bun run server.ts",
+    "test": "bun run test-signup.ts"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^11.0.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  }
+}

@@ -26,6 +26,9 @@ use uuid::Uuid;
 mod mcp;
 use mcp::{JsonRpcReq, JsonRpcRes};
 
+mod credential_store;
+use credential_store::CredentialStore;
+
 // ============================================================================
 // Message Types
 // ============================================================================
@@ -60,13 +63,19 @@ struct ServerState {
     pending_requests: Arc<RwLock<HashMap<RequestId, PendingRequest>>>,
     // Connected extension WebSocket sender
     extension_tx: Arc<RwLock<Option<mpsc::Sender<ExtensionCommand>>>>,
+    // Credential store with time-window authorization
+    credential_store: Arc<CredentialStore>,
 }
 
 impl ServerState {
-    fn new() -> Self {
+    async fn new() -> Self {
+        let credential_store = CredentialStore::new().await
+            .expect("Failed to initialize credential store");
+
         Self {
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             extension_tx: Arc::new(RwLock::new(None)),
+            credential_store: Arc::new(credential_store),
         }
     }
 
@@ -237,6 +246,109 @@ async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpc
                                     }
                                 }
                             }
+                        },
+                        {
+                            "name": "passkey_enable",
+                            "description": "Enable or disable passkey automation for WebAuthn flows",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "enabled": {
+                                        "type": "boolean",
+                                        "description": "Whether to enable passkey automation"
+                                    }
+                                },
+                                "required": ["enabled"]
+                            }
+                        },
+                        {
+                            "name": "passkey_status",
+                            "description": "Get the current status of passkey automation",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        },
+                        {
+                            "name": "passkey_list",
+                            "description": "List all stored passkey credentials",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        },
+                        {
+                            "name": "passkey_clear",
+                            "description": "Clear all stored passkey credentials",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        },
+                        {
+                            "name": "passkey_authorize",
+                            "description": "Authorize AI agent to use passkeys for a limited time (requires Touch ID on macOS)",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "duration_hours": {
+                                        "type": "number",
+                                        "description": "Number of hours to authorize access (default: 8)"
+                                    }
+                                },
+                                "required": []
+                            }
+                        },
+                        {
+                            "name": "passkey_authorization_status",
+                            "description": "Check if AI agent is currently authorized to use passkeys",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {}
+                            }
+                        },
+                        {
+                            "name": "playwright_detect_modal",
+                            "description": "Detect if a modal, popup, or overlay is present on the page",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "minZIndex": {
+                                        "type": "number",
+                                        "description": "Minimum z-index to consider (default: 100)"
+                                    },
+                                    "includeHidden": {
+                                        "type": "boolean",
+                                        "description": "Include hidden modals (default: false)"
+                                    },
+                                    "maxResults": {
+                                        "type": "number",
+                                        "description": "Maximum number of modals to detect (default: 1)"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                            "name": "playwright_dismiss_modal",
+                            "description": "Attempt to dismiss any detected modals on the page",
+                            "inputSchema": {
+                                "type": "object",
+                                "properties": {
+                                    "strategy": {
+                                        "type": "string",
+                                        "enum": ["auto", "button", "escape", "backdrop", "remove"],
+                                        "description": "Dismissal strategy: auto tries all methods, button clicks dismiss button, escape presses ESC, backdrop clicks overlay, remove forcibly removes from DOM (default: auto)"
+                                    },
+                                    "timeout": {
+                                        "type": "number",
+                                        "description": "Timeout in milliseconds (default: 5000)"
+                                    },
+                                    "waitAfter": {
+                                        "type": "number",
+                                        "description": "Wait time after dismissal to verify (default: 500)"
+                                    }
+                                }
+                            }
                         }
                     ]
                 }),
@@ -257,12 +369,47 @@ async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpc
 
             match tool_name {
                 Ok(name) => {
+                    // Handle server-side tools (don't forward to extension)
+                    match name {
+                        "passkey_authorize" => {
+                            let duration_hours = arguments
+                                .get("duration_hours")
+                                .and_then(|v| v.as_f64())
+                                .unwrap_or(8.0);
+
+                            let duration = std::time::Duration::from_secs((duration_hours * 3600.0) as u64);
+
+                            return match state.credential_store.authorize_session(duration).await {
+                                Ok(_) => JsonRpcRes::ok(
+                                    id,
+                                    serde_json::json!({
+                                        "authorized": true,
+                                        "duration_hours": duration_hours,
+                                        "message": format!("Authorized for {} hours", duration_hours)
+                                    }),
+                                ),
+                                Err(e) => JsonRpcRes::err(id, -32000, e.to_string(), None),
+                            };
+                        }
+                        "passkey_authorization_status" => {
+                            let status = state.credential_store.get_authorization_status().await;
+                            return JsonRpcRes::ok(id, status);
+                        }
+                        _ => {}
+                    }
+
                     // Map MCP tool names to internal command names
                     let internal_method = match name {
                         "playwright_navigate" => "navigate",
                         "playwright_click" => "click",
                         "playwright_fill" => "type",
                         "playwright_screenshot" => "screenshot",
+                        "playwright_detect_modal" => "detect_modal",
+                        "playwright_dismiss_modal" => "dismiss_modal",
+                        "passkey_enable" => "passkey_enable",
+                        "passkey_status" => "passkey_status",
+                        "passkey_list" => "passkey_list",
+                        "passkey_clear" => "passkey_clear",
                         _ => {
                             return JsonRpcRes::err(
                                 id,
@@ -556,7 +703,7 @@ async fn main() -> Result<()> {
 
     info!("Agent Browser Server starting...");
 
-    let state = Arc::new(ServerState::new());
+    let state = Arc::new(ServerState::new().await);
 
     // Check environment variables for which interfaces to enable
     let mcp_tcp_enabled = env::var("MCP_TCP").is_ok();

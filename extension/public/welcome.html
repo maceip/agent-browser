@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Browser - Welcome</title>
+  <link rel="stylesheet" href="welcome.css">
+</head>
+<body>
+  <div class="container">
+    <div class="avatar-container">
+      <div class="pixel-glow"></div>
+      <img src="icon-128.png" alt="Agent Browser" class="avatar">
+    </div>
+
+    <div class="content">
+      <h1 class="glitch-text" data-text="Welcome to Agent Browser">
+        Welcome to Agent Browser
+      </h1>
+
+      <p class="subtitle">
+        Enable magic link automation by connecting your email
+      </p>
+
+      <div class="setup-container" id="setupContainer">
+        <!-- Step 1: Email Input -->
+        <div class="step active" id="step1">
+          <div class="step-header">
+            <div class="step-number">01</div>
+            <h2>Enter Your Email</h2>
+          </div>
+
+          <div class="input-container">
+            <div class="auto-detect-badge" id="autoDetectBadge">
+              ✨ Auto-detected from Chrome profile
+            </div>
+            <input
+              type="email"
+              id="emailInput"
+              placeholder="your.email@example.com"
+              autocomplete="email"
+              spellcheck="false"
+            >
+            <div class="provider-icon" id="providerIcon"></div>
+            <div class="input-underline"></div>
+          </div>
+
+          <div class="provider-info" id="providerInfo">
+            <span class="provider-label">Detected Provider:</span>
+            <span class="provider-name" id="providerName">—</span>
+          </div>
+
+          <button class="btn-primary" id="continueBtn" disabled>
+            <span class="btn-text">Continue</span>
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+
+        <!-- Step 2: Authentication -->
+        <div class="step" id="step2">
+          <div class="step-header">
+            <div class="step-number">02</div>
+            <h2>Authenticate Email Access</h2>
+          </div>
+
+          <div class="auth-instructions">
+            <p>We'll open a new tab to <span id="authProvider"></span></p>
+            <p>Please sign in to grant access for magic link automation</p>
+          </div>
+
+          <div class="auth-status" id="authStatus">
+            <div class="spinner"></div>
+            <p>Waiting for authentication...</p>
+          </div>
+
+          <button class="btn-primary" id="openAuthBtn">
+            <span class="btn-text">Open <span id="authProviderName"></span></span>
+            <span class="btn-arrow">↗</span>
+          </button>
+
+          <button class="btn-secondary" id="backBtn">
+            <span class="btn-text">← Back</span>
+          </button>
+        </div>
+
+        <!-- Step 3: Complete -->
+        <div class="step" id="step3">
+          <div class="step-header">
+            <div class="step-number">03</div>
+            <h2>Setup Complete!</h2>
+          </div>
+
+          <div class="success-animation">
+            <div class="checkmark">✓</div>
+          </div>
+
+          <div class="complete-info">
+            <p>Email automation is now enabled</p>
+            <p class="email-display" id="emailDisplay"></p>
+          </div>
+
+          <button class="btn-primary" id="finishBtn">
+            <span class="btn-text">Start Automating</span>
+            <span class="btn-arrow">🚀</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="particles" id="particles"></div>
+    </div>
+  </div>
+
+  <script src="welcome.js"></script>
+</body>
+</html>

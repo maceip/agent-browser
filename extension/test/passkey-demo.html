@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Browser - Passkey Demo</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f7f7f7;
+      border-radius: 12px;
+    }
+
+    .section h2 {
+      color: #333;
+      margin-bottom: 15px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .message {
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .message.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      display: block;
+    }
+
+    .message.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      display: block;
+    }
+
+    .console {
+      margin-top: 15px;
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: 600;
+      margin-left: auto;
+    }
+
+    .status.ready {
+      background: #d4edda;
+      color: #155724;
+    }
+
+    .status.not-ready {
+      background: #f8d7da;
+      color: #721c24;
+    }
+
+    details {
+      margin-top: 10px;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 8px;
+      background: #e9ecef;
+      border-radius: 6px;
+      font-weight: 500;
+      user-select: none;
+    }
+
+    summary:hover {
+      background: #dee2e6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Passkey Demo</h1>
+    <p class="subtitle">Agent Browser - WebAuthn Test Page</p>
+
+    <!-- Registration Section -->
+    <div class="section">
+      <h2>
+        📝 Registration
+        <span id="regStatus" class="status not-ready">Not Ready</span>
+      </h2>
+
+      <div class="input-group">
+        <label for="regUsername">Username</label>
+        <input type="text" id="regUsername" placeholder="Enter username" value="demo-user">
+      </div>
+
+      <div class="input-group">
+        <label for="regEmail">Email</label>
+        <input type="email" id="regEmail" placeholder="Enter email" value="demo@example.com">
+      </div>
+
+      <button id="btnRegister">Create Passkey</button>
+
+      <div id="regMessage" class="message"></div>
+
+      <details>
+        <summary>Debug Console</summary>
+        <div id="regConsole" class="console"></div>
+      </details>
+    </div>
+
+    <!-- Authentication Section -->
+    <div class="section">
+      <h2>
+        🔓 Authentication
+        <span id="authStatus" class="status not-ready">Not Ready</span>
+      </h2>
+
+      <button id="btnAuthenticate" disabled>Sign In with Passkey</button>
+
+      <div id="authMessage" class="message"></div>
+
+      <details>
+        <summary>Debug Console</summary>
+        <div id="authConsole" class="console"></div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    // State
+    let registeredCredential = null;
+    let userHandle = null;
+
+    // Elements
+    const regStatus = document.getElementById('regStatus');
+    const authStatus = document.getElementById('authStatus');
+    const btnRegister = document.getElementById('btnRegister');
+    const btnAuthenticate = document.getElementById('btnAuthenticate');
+    const regMessage = document.getElementById('regMessage');
+    const authMessage = document.getElementById('authMessage');
+    const regConsole = document.getElementById('regConsole');
+    const authConsole = document.getElementById('authConsole');
+
+    // Helpers
+    function log(consoleEl, message, data = null) {
+      const timestamp = new Date().toLocaleTimeString();
+      let output = `[${timestamp}] ${message}`;
+      if (data) {
+        output += '\\n' + JSON.stringify(data, null, 2);
+      }
+      consoleEl.textContent += output + '\\n\\n';
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function showMessage(messageEl, text, type) {
+      messageEl.textContent = text;
+      messageEl.className = `message ${type}`;
+    }
+
+    function updateStatus(statusEl, ready) {
+      statusEl.textContent = ready ? 'Ready' : 'Not Ready';
+      statusEl.className = `status ${ready ? 'ready' : 'not-ready'}`;
+    }
+
+    function bufferToBase64(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)));
+    }
+
+    function base64ToBuffer(base64) {
+      const binary = atob(base64);
+      const bytes = new Uint8Array(binary.length);
+      for (let i = 0; i < binary.length; i++) {
+        bytes[i] = binary.charCodeAt(i);
+      }
+      return bytes.buffer;
+    }
+
+    // Check WebAuthn support
+    if (!window.PublicKeyCredential) {
+      showMessage(regMessage, 'WebAuthn not supported in this browser', 'error');
+      btnRegister.disabled = true;
+    } else {
+      updateStatus(regStatus, true);
+      log(regConsole, 'WebAuthn supported ✓');
+    }
+
+    // Registration
+    btnRegister.addEventListener('click', async () => {
+      try {
+        btnRegister.disabled = true;
+        showMessage(regMessage, '', '');
+        regMessage.style.display = 'none';
+
+        const username = document.getElementById('regUsername').value;
+        const email = document.getElementById('regEmail').value;
+
+        if (!username || !email) {
+          throw new Error('Username and email are required');
+        }
+
+        log(regConsole, `Starting registration for ${username}`);
+
+        // Generate user handle
+        userHandle = crypto.getRandomValues(new Uint8Array(16));
+
+        // Generate challenge
+        const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+        const publicKeyOptions = {
+          challenge: challenge,
+          rp: {
+            name: "Agent Browser Demo",
+            id: window.location.hostname,
+          },
+          user: {
+            id: userHandle,
+            name: username,
+            displayName: email,
+          },
+          pubKeyCredParams: [
+            { alg: -7, type: "public-key" },  // ES256
+            { alg: -257, type: "public-key" }, // RS256
+          ],
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            requireResidentKey: false,
+            userVerification: "preferred",
+          },
+          timeout: 60000,
+          attestation: "none",
+        };
+
+        log(regConsole, 'PublicKey options:', publicKeyOptions);
+
+        const credential = await navigator.credentials.create({
+          publicKey: publicKeyOptions
+        });
+
+        log(regConsole, 'Credential created:', {
+          id: bufferToBase64(credential.rawId),
+          type: credential.type,
+          authenticatorAttachment: credential.authenticatorAttachment,
+        });
+
+        // Store credential info
+        registeredCredential = {
+          id: credential.rawId,
+          id_b64: bufferToBase64(credential.rawId),
+          type: credential.type,
+          response: {
+            clientDataJSON: bufferToBase64(credential.response.clientDataJSON),
+            attestationObject: bufferToBase64(credential.response.attestationObject),
+          }
+        };
+
+        showMessage(regMessage, '✓ Passkey created successfully!', 'success');
+        updateStatus(authStatus, true);
+        btnAuthenticate.disabled = false;
+
+        log(regConsole, 'Registration complete ✓');
+
+      } catch (error) {
+        log(regConsole, 'Registration failed:', { error: error.message });
+        showMessage(regMessage, `Error: ${error.message}`, 'error');
+      } finally {
+        btnRegister.disabled = false;
+      }
+    });
+
+    // Authentication
+    btnAuthenticate.addEventListener('click', async () => {
+      try {
+        btnAuthenticate.disabled = true;
+        showMessage(authMessage, '', '');
+        authMessage.style.display = 'none';
+
+        if (!registeredCredential) {
+          throw new Error('No credential registered. Please register first.');
+        }
+
+        log(authConsole, 'Starting authentication');
+
+        // Generate challenge
+        const challenge = crypto.getRandomValues(new Uint8Array(32));
+
+        const publicKeyOptions = {
+          challenge: challenge,
+          timeout: 60000,
+          rpId: window.location.hostname,
+          allowCredentials: [{
+            id: registeredCredential.id,
+            type: 'public-key',
+            transports: ['internal'],
+          }],
+          userVerification: "preferred",
+        };
+
+        log(authConsole, 'PublicKey options:', {
+          ...publicKeyOptions,
+          challenge: bufferToBase64(challenge),
+          allowCredentials: publicKeyOptions.allowCredentials.map(c => ({
+            ...c,
+            id: bufferToBase64(c.id)
+          }))
+        });
+
+        const assertion = await navigator.credentials.get({
+          publicKey: publicKeyOptions
+        });
+
+        log(authConsole, 'Authentication response:', {
+          id: bufferToBase64(assertion.rawId),
+          type: assertion.type,
+          authenticatorAttachment: assertion.authenticatorAttachment,
+        });
+
+        const authResult = {
+          id: bufferToBase64(assertion.rawId),
+          type: assertion.type,
+          response: {
+            clientDataJSON: bufferToBase64(assertion.response.clientDataJSON),
+            authenticatorData: bufferToBase64(assertion.response.authenticatorData),
+            signature: bufferToBase64(assertion.response.signature),
+            userHandle: assertion.response.userHandle ? bufferToBase64(assertion.response.userHandle) : null,
+          }
+        };
+
+        showMessage(authMessage, '✓ Authentication successful!', 'success');
+        log(authConsole, 'Authentication complete ✓');
+
+      } catch (error) {
+        log(authConsole, 'Authentication failed:', { error: error.message });
+        showMessage(authMessage, `Error: ${error.message}`, 'error');
+      } finally {
+        btnAuthenticate.disabled = false;
+      }
+    });
+
+    // Initial log
+    log(regConsole, 'Page loaded. Ready to register a passkey.');
+    log(authConsole, 'Waiting for registration...');
+  </script>
+</body>
+</html>

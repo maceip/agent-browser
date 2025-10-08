@@ -1,0 +1,16 @@
+{
+  "name": "gdpr-test-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "test": "bun test-automation.ts"
+  },
+  "dependencies": {
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "bun-types": "latest"
+  }
+}

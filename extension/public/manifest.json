@@ -9,7 +9,10 @@
     "activeTab",
     "scripting",
     "tabs",
-    "nativeMessaging"
+    "nativeMessaging",
+    "offscreen",
+    "identity",
+    "identity.email"
   ],
 
   "host_permissions": [

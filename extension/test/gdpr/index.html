@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Daily News - Breaking News & Latest Stories</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      line-height: 1.6;
+      color: #333;
+    }
+
+    /* Header */
+    .header {
+      background: #1a1a1a;
+      color: white;
+      padding: 1rem 2rem;
+      border-bottom: 3px solid #e74c3c;
+    }
+
+    .header h1 {
+      font-size: 2rem;
+      font-weight: 700;
+    }
+
+    .header .tagline {
+      font-size: 0.9rem;
+      color: #ccc;
+      margin-top: 0.25rem;
+    }
+
+    /* Navigation */
+    .nav {
+      background: #2c3e50;
+      padding: 0.75rem 2rem;
+      display: flex;
+      align-items: center;
+    }
+
+    .nav a {
+      color: white;
+      text-decoration: none;
+      margin-right: 2rem;
+      font-weight: 500;
+    }
+
+    .nav a:hover {
+      color: #e74c3c;
+    }
+
+    .nav select:hover {
+      background: #475569;
+    }
+
+    /* Main Content */
+    .container {
+      max-width: 1200px;
+      margin: 2rem auto;
+      padding: 0 2rem;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 3rem 2rem;
+      border-radius: 8px;
+      margin-bottom: 2rem;
+    }
+
+    .hero h2 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    .hero p {
+      font-size: 1.1rem;
+      opacity: 0.95;
+    }
+
+    .article-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      gap: 2rem;
+      margin-top: 2rem;
+    }
+
+    .article-card {
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      overflow: hidden;
+      transition: transform 0.2s;
+    }
+
+    .article-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    .article-card img {
+      width: 100%;
+      height: 200px;
+      object-fit: cover;
+      background: #f0f0f0;
+    }
+
+    .article-card .content {
+      padding: 1.5rem;
+    }
+
+    .article-card h3 {
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    .article-card p {
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    .article-card .meta {
+      margin-top: 1rem;
+      font-size: 0.85rem;
+      color: #999;
+    }
+
+    /* GDPR Cookie Banner */
+    #gdpr-banner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: white;
+      border-top: 2px solid #e74c3c;
+      box-shadow: 0 -4px 12px rgba(0,0,0,0.15);
+      padding: 1.5rem;
+      z-index: 9999;
+      display: none;
+    }
+
+    #gdpr-banner.show {
+      display: block;
+    }
+
+    .gdpr-content {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+    }
+
+    .gdpr-text {
+      flex: 1;
+    }
+
+    .gdpr-text h3 {
+      margin-bottom: 0.5rem;
+      color: #2c3e50;
+    }
+
+    .gdpr-text p {
+      color: #666;
+      font-size: 0.95rem;
+    }
+
+    .gdpr-actions {
+      display: flex;
+      gap: 1rem;
+    }
+
+    .btn {
+      padding: 0.75rem 2rem;
+      border: none;
+      border-radius: 4px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: #e74c3c;
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background: #c0392b;
+    }
+
+    .btn-secondary {
+      background: #ecf0f1;
+      color: #2c3e50;
+    }
+
+    .btn-secondary:hover {
+      background: #bdc3c7;
+    }
+
+    /* Backdrop */
+    #gdpr-backdrop {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.3);
+      z-index: 9998;
+      display: none;
+    }
+
+    #gdpr-backdrop.show {
+      display: block;
+    }
+
+    /* Debug Console */
+    #debug-console {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #2c3e50;
+      color: #ecf0f1;
+      padding: 1rem;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 0.85rem;
+      max-width: 300px;
+      z-index: 10000;
+    }
+
+    #debug-console h4 {
+      margin-bottom: 0.5rem;
+      color: #3498db;
+    }
+
+    .debug-line {
+      margin: 0.25rem 0;
+      padding: 0.25rem 0;
+      border-bottom: 1px solid #34495e;
+    }
+
+    .debug-line:last-child {
+      border-bottom: none;
+    }
+
+    .debug-success {
+      color: #2ecc71;
+    }
+
+    .debug-info {
+      color: #3498db;
+    }
+
+    .debug-warning {
+      color: #f39c12;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📰 Daily News</h1>
+    <div class="tagline">Breaking News & Latest Stories</div>
+  </div>
+
+  <div class="nav">
+    <a href="/">Home</a>
+    <a href="/story">Featured Story</a>
+    <a href="#" onclick="clearCookies(); return false;">Clear Cookies (Reset)</a>
+    <span style="margin-left: auto; display: flex; gap: 0.5rem; align-items: center;">
+      <span style="font-size: 0.9rem; opacity: 0.8;">Scenario:</span>
+      <select id="scenario-selector" onchange="setScenario(this.value)" style="
+        background: #34495e;
+        color: white;
+        border: 1px solid #475569;
+        padding: 0.4rem 0.8rem;
+        border-radius: 4px;
+        font-size: 0.9rem;
+        cursor: pointer;
+      ">
+        <option value="normal">Normal (first visit only)</option>
+        <option value="delayed">Delayed (show on 2nd page)</option>
+        <option value="never">Never (no banner)</option>
+        <option value="persistent">Persistent (always show)</option>
+        <option value="random">Random (50% chance)</option>
+      </select>
+    </span>
+  </div>
+
+  <div id="app"></div>
+
+  <!-- GDPR Cookie Banner -->
+  <div id="gdpr-backdrop" class=""></div>
+  <div id="gdpr-banner" class="" role="dialog" aria-modal="true" aria-labelledby="gdpr-title">
+    <div class="gdpr-content">
+      <div class="gdpr-text">
+        <h3 id="gdpr-title">🍪 We Value Your Privacy</h3>
+        <p>
+          We use cookies to enhance your browsing experience, serve personalized content,
+          and analyze our traffic. By clicking "Accept All", you consent to our use of cookies.
+        </p>
+      </div>
+      <div class="gdpr-actions">
+        <button class="btn btn-secondary" onclick="rejectCookies()">Decline</button>
+        <button class="btn btn-primary" onclick="acceptCookies()">Accept All</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Debug Console -->
+  <div id="debug-console">
+    <h4>🔍 Auto-Modal Debug</h4>
+    <div id="debug-log"></div>
+  </div>
+
+  <script type="module" src="./app.tsx"></script>
+  <script>
+    // Test Scenarios Configuration
+    const SCENARIOS = {
+      NORMAL: 'normal',           // Standard: show only when no consent
+      DELAYED: 'delayed',         // Show on second page, not first
+      NEVER: 'never',             // Never show (some sites don't have banners)
+      PERSISTENT: 'persistent',   // Always show, even with cookies (buggy sites)
+      RANDOM: 'random',           // Random behavior on each page
+    };
+
+    // Get or set scenario from localStorage
+    function getScenario() {
+      const stored = localStorage.getItem('gdpr_test_scenario');
+      return stored || SCENARIOS.NORMAL;
+    }
+
+    function setScenario(scenario) {
+      localStorage.setItem('gdpr_test_scenario', scenario);
+      logDebug(`Scenario changed to: ${scenario}`, 'warning');
+      setTimeout(() => location.reload(), 500);
+    }
+
+    // Cookie helpers
+    function getCookie(name) {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop().split(';').shift();
+      return null;
+    }
+
+    function setCookie(name, value, days = 365) {
+      const expires = new Date();
+      expires.setTime(expires.getTime() + days * 24 * 60 * 60 * 1000);
+      document.cookie = `${name}=${value};expires=${expires.toUTCString()};path=/`;
+      logDebug(`Cookie set: ${name}=${value}`, 'success');
+    }
+
+    function clearCookies() {
+      document.cookie.split(";").forEach(c => {
+        document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+      });
+      logDebug('All cookies cleared', 'warning');
+      setTimeout(() => location.reload(), 500);
+    }
+
+    function acceptCookies() {
+      setCookie('gdpr_consent', 'accepted');
+      setCookie('cookie_preferences', 'all');
+      hideBanner();
+    }
+
+    function rejectCookies() {
+      setCookie('gdpr_consent', 'rejected');
+      setCookie('cookie_preferences', 'essential');
+      hideBanner();
+    }
+
+    function showBanner() {
+      document.getElementById('gdpr-banner').classList.add('show');
+      document.getElementById('gdpr-backdrop').classList.add('show');
+      logDebug('GDPR banner shown', 'info');
+    }
+
+    function hideBanner() {
+      document.getElementById('gdpr-banner').classList.remove('show');
+      document.getElementById('gdpr-backdrop').classList.remove('show');
+      logDebug('GDPR banner hidden', 'success');
+    }
+
+    // Debug logging
+    function logDebug(message, type = 'info') {
+      const log = document.getElementById('debug-log');
+      const line = document.createElement('div');
+      line.className = `debug-line debug-${type}`;
+      line.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
+      log.appendChild(line);
+
+      // Keep only last 10 logs
+      while (log.children.length > 10) {
+        log.removeChild(log.firstChild);
+      }
+    }
+
+    // Banner decision logic based on scenario
+    function shouldShowBanner(scenario, consent, pathname) {
+      switch (scenario) {
+        case SCENARIOS.NORMAL:
+          // Standard behavior: show only when no consent
+          return !consent;
+
+        case SCENARIOS.DELAYED:
+          // Show on second page (/story), not first (/)
+          return !consent && pathname === '/story';
+
+        case SCENARIOS.NEVER:
+          // Never show banner
+          return false;
+
+        case SCENARIOS.PERSISTENT:
+          // Always show, even with consent (simulates buggy sites)
+          return true;
+
+        case SCENARIOS.RANDOM:
+          // Random: 50% chance on each page
+          return Math.random() < 0.5;
+
+        default:
+          return !consent;
+      }
+    }
+
+    // Check for consent on load
+    window.addEventListener('DOMContentLoaded', () => {
+      const scenario = getScenario();
+      const consent = getCookie('gdpr_consent');
+      const hasCookies = document.cookie.length > 0;
+      const pathname = window.location.pathname;
+
+      // Set scenario selector to current value
+      const selector = document.getElementById('scenario-selector');
+      if (selector) {
+        selector.value = scenario;
+      }
+
+      logDebug(`Scenario: ${scenario}`, 'warning');
+      logDebug(`Page: ${pathname}`, 'info');
+      logDebug(`Cookies exist: ${hasCookies}`, 'info');
+      logDebug(`GDPR consent: ${consent || 'none'}`, 'info');
+
+      const shouldShow = shouldShowBanner(scenario, consent, pathname);
+
+      if (shouldShow) {
+        const reason = !consent ? 'no consent' :
+                      scenario === SCENARIOS.PERSISTENT ? 'persistent mode' :
+                      scenario === SCENARIOS.RANDOM ? 'random mode' :
+                      scenario === SCENARIOS.DELAYED ? 'delayed mode' :
+                      'scenario setting';
+
+        logDebug(`Showing banner (${reason})`, 'warning');
+        setTimeout(showBanner, 500);
+      } else {
+        const reason = consent ? 'consent given' :
+                      scenario === SCENARIOS.NEVER ? 'never mode' :
+                      scenario === SCENARIOS.DELAYED && pathname === '/' ? 'delayed (homepage skip)' :
+                      scenario === SCENARIOS.RANDOM ? 'random skip' :
+                      'scenario setting';
+
+        logDebug(`Banner skipped (${reason})`, 'success');
+      }
+    });
+  </script>
+</body>
+</html>

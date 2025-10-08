@@ -4,13 +4,18 @@
  * - Listen for commands from background
  * - Execute: navigate, click, type, wait
  * - Return result
+ * - Monitor for magic link authentication flows
  */
 
 import { clickCommand } from '../lib/automation/click';
 import { typeCommand } from '../lib/automation/type';
 import { waitCommand } from '../lib/automation/wait';
 import { getModeConfig } from '../lib/automation/mode-config';
+import { detectModal, detectAllModals } from '../lib/automation/modal-detector';
+import { dismissModal } from '../lib/automation/modal-dismiss';
 import type { Command, CommandAction } from '../lib/automation/types';
+import { getMagicLinkDetector } from '../lib/automation/magic-link-detector';
+import type { MagicLinkDetection } from '../lib/automation/magic-link-detector';
 
 // ============================================================================
 // Message Handler
@@ -76,6 +81,12 @@ async function handleCommand(command: Command): Promise<any> {
 
     case 'get_element':
       return await handleGetElement(command);
+
+    case 'detect_modal':
+      return await handleDetectModal(command);
+
+    case 'dismiss_modal':
+      return await handleDismissModal(command, config);
 
     default:
       throw new Error(`Unknown command: ${action}`);
@@ -159,8 +170,103 @@ async function handleGetElement(command: Command): Promise<any> {
   };
 }
 
+async function handleDetectModal(command: Command): Promise<any> {
+  const { minZIndex, includeHidden, maxResults } = command.params;
+
+  const options = {
+    minZIndex,
+    includeHidden,
+    maxResults,
+  };
+
+  if (maxResults && maxResults > 1) {
+    // Detect all modals
+    const modals = detectAllModals(options);
+    return {
+      success: true,
+      modals: modals.map(m => ({
+        type: m.type,
+        confidence: m.confidence,
+        hasDismissButton: m.dismissButton !== null,
+        hasBackdrop: m.backdrop !== null,
+        zIndex: m.zIndex,
+        metadata: m.metadata,
+      })),
+      count: modals.length,
+    };
+  } else {
+    // Detect primary modal
+    const modal = detectModal(options);
+
+    if (!modal) {
+      return {
+        success: true,
+        detected: false,
+      };
+    }
+
+    return {
+      success: true,
+      detected: true,
+      modal: {
+        type: modal.type,
+        confidence: modal.confidence,
+        hasDismissButton: modal.dismissButton !== null,
+        hasBackdrop: modal.backdrop !== null,
+        zIndex: modal.zIndex,
+        metadata: modal.metadata,
+      },
+    };
+  }
+}
+
+async function handleDismissModal(command: Command, config: ModeConfig): Promise<any> {
+  const { strategy, timeout, waitAfter } = command.params;
+
+  const result = await dismissModal(config, {
+    strategy,
+    timeout,
+    waitAfter,
+  });
+
+  return {
+    success: result.success,
+    error: result.error,
+    strategy: result.strategy,
+    duration: result.duration,
+    modalType: result.modalInfo?.type,
+  };
+}
+
+// ============================================================================
+// Magic Link Detection
+// ============================================================================
+
+const magicLinkDetector = getMagicLinkDetector();
+
+// Set up detection callback
+magicLinkDetector.onDetection(async (detection: MagicLinkDetection) => {
+  console.log('[Content] Magic link detected, notifying background:', detection);
+
+  // Notify background script
+  try {
+    await chrome.runtime.sendMessage({
+      type: 'magic_link_detected',
+      email: detection.email,
+      formType: detection.formType,
+      url: window.location.href,
+    });
+  } catch (error) {
+    console.error('[Content] Error notifying background:', error);
+  }
+});
+
+// Start monitoring forms
+magicLinkDetector.startMonitoring();
+
 // ============================================================================
 // Initialization
 // ============================================================================
 
 console.log('[Content] Script loaded:', window.location.href);
+console.log('[Content] Magic link detection active');

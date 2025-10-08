@@ -42,7 +42,9 @@ export type CommandAction =
   | 'wait'
   | 'screenshot'
   | 'navigate'
-  | 'get_element';
+  | 'get_element'
+  | 'detect_modal'
+  | 'dismiss_modal';
 
 export interface Command {
   commandId: string;
@@ -103,6 +105,18 @@ export interface ScreenshotParams {
   selector?: string;
   format?: 'png' | 'jpeg';
   quality?: number;
+}
+
+export interface DetectModalParams {
+  minZIndex?: number;
+  includeHidden?: boolean;
+  maxResults?: number;
+}
+
+export interface DismissModalParams {
+  strategy?: 'auto' | 'button' | 'escape' | 'backdrop' | 'remove';
+  timeout?: number;
+  waitAfter?: number;
 }
 
 // ============================================================================

@@ -1,222 +1,83 @@
 ```
-     ▄▄▄        ▄████ ▓█████  ███▄    █ ▄▄▄█████▓
-    ▒████▄     ██▒ ▀█▒▓█   ▀  ██ ▀█   █ ▓  ██▒ ▓▒
-    ▒██  ▀█▄  ▒██░▄▄▄░▒███   ▓██  ▀█ ██▒▒ ▓██░ ▒░
-    ░██▄▄▄▄██ ░▓█  ██▓▒▓█  ▄ ▓██▒  ▐▌██▒░ ▓██▓ ░
-     ▓█   ▓██▒░▒▓███▀▒░▒████▒▒██░   ▓██░  ▒██▒ ░
-     ▒▒   ▓▒█░ ░▒   ▒ ░░ ▒░ ░░ ▒░   ▒ ▒   ▒ ░░
-      ▒   ▒▒ ░  ░   ░  ░ ░  ░░ ░░   ░ ▒░    ░
-      ░   ▒   ░ ░   ░    ░      ░   ░ ░   ░
+     ███        ████ ██████  ████▄    █ ████████
+    █████▄     ██▒ ▀█▒██   ▀  ██ ▀█   █ █  ██▒ █▒
+    ▓██  ▀█▄  ▓██░▄▄▄░▓███   ███  ▀█ ██▒▓ ███░ ▒░
+    ▒██▄▄▄▄██ ▒██  ███▒██  ▄ ███▒  ▐▌██▒▒ ███▓ ░
+     ██   ███▒░▒████▀▒░▒████▒▒██░   ███░  ▒██▒ ░
+     ▒▒   ▒▒█░ ░▒   ▒ ░░ ▒░ ░░ ▒░   ▒ ▒   ▒ ░░
+      ░   ░▒ ░  ░   ░  ░ ░  ░░ ░░   ░ ░░    ░
+      ░   ░   ░ ░   ░    ░      ░   ░ ░   ░
           ░  ░      ░    ░  ░         ░
 
-   ▄▄▄▄    ██▀███   ▒█████   █     █░  ██████ ▓█████  ██▀███
-  ▓█████▄ ▓██ ▒ ██▒▒██▒  ██▒▓█░ █ ░█░▒██    ▒ ▓█   ▀ ▓██ ▒ ██▒
-  ▒██▒ ▄██▓██ ░▄█ ▒▒██░  ██▒▒█░ █ ░█ ░ ▓██▄   ▒███   ▓██ ░▄█ ▒
-  ▒██░█▀  ▒██▀▀█▄  ▒██   ██░░█░ █ ░█   ▒   ██▒▒▓█  ▄ ▒██▀▀█▄
-  ░▓█  ▀█▓░██▓ ▒██▒░ ████▓▒░░░██▒██▓ ▒██████▒▒░▒████▒░██▓ ▒██▒
-  ░▒▓███▀▒░ ▒▓ ░▒▓░░ ▒░▒░▒░ ░ ▓░▒ ▒  ▒ ▒▓▒ ▒ ░░░ ▒░ ░░ ▒▓ ░▒▓░
-  ▒░▒   ░   ░▒ ░ ▒░  ░ ▒ ▒░   ▒ ░ ░  ░ ░▒  ░ ░ ░ ░  ░  ░▒ ░ ▒░
-   ░    ░   ░░   ░ ░ ░ ░ ▒    ░   ░  ░  ░  ░     ░     ░░   ░
+   ░░░░    ░░░░░░   ░░░░░   ░     ░░  ░░░░░░ ░░░░░  ░░░░░░
+  ░░░░░░░ ░░░ ░ ░░░░░░░  ░░░░░ ░ ░░░░░░    ░ ░░   ░ ░░░ ░ ░░░
+  ░░░░ ░░░░░░ ░░░ ░░░░░  ░░░░░ ░ ░░ ░ ░░░░   ░░░░   ░░░ ░░░ ░
+  ░░░░░░  ░░░░░░░  ░░░   ░░░░░ ░ ░░   ░   ░░░░░░  ░ ░░░░░░░
+  ░░░  ░░░░░░░ ░░░░░ ░░░░░░░░░░░░░░░░░ ░░░░░░░░░░░░░░░░░ ░░░░░
+  ░░░░░░░░░ ░░ ░░░░░░ ░░░░░░░ ░ ░░░ ░  ░ ░░░ ░ ░░░ ░░ ░░ ░░ ░░░░░
+  ░░░   ░   ░░ ░ ░░  ░ ░ ░░   ░ ░ ░  ░ ░░  ░ ░ ░ ░  ░  ░░ ░ ░░
+   ░    ░   ░░   ░ ░ ░ ░ ░    ░   ░  ░  ░  ░     ░     ░░   ░
    ░         ░         ░ ░      ░          ░     ░  ░   ░
         ░
 ```
 
-mcp-native browser automation, with stealth and performance as primitives
+**mcp-native browser automation, with stealth and performance as primitives**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-## Overview
+## Quickstart
 
-Agent Browser is a Model Context Protocol (MCP) server that provides browser automation capabilities through a Chrome extension. Unlike traditional browser automation tools that rely on external processes, Agent Browser uses native Chrome extension APIs for reliable, always-on automation.
+```bash
+# 1. Install components
+./install.sh
+
+# 2. Load extension
+# Open chrome://extensions/ → Enable "Developer mode" → "Load unpacked" → Select extension/public
+
+# 3. Configure email provider & passkey authorization
+# Click extension icon → Configure email provider for magic link automation
+# Set passkey authorization window (default: 5 minutes) for time-bound credential access
+
+# 4. Add MCP server to Claude Code
+claude mcp add agent-browser /usr/local/bin/agent-browser-server --env MCP_STDIO=1
+
+# 5. Test it
+# Ask Claude: "Navigate to example.com and take a screenshot"
+```
+
+Launch Chrome with extension pre-loaded: `./launch-browser.sh`
 
 ## Features
 
-- **Playwright-compatible tools** - Drop-in replacement for common Playwright MCP commands
-- **Native Chrome extension** - No external browser process, always available
-- **Persistent automation** - Survives content script reloads and Chrome lifecycle events
-- **MCP protocol compliant** - Works with Claude Desktop, mcp CLI, and other MCP clients
-- **Stealth automation** - Human-like delays and behavior patterns
+### 1. Rust WebSocket Server & Passkey Storage
+- High-performance Rust MCP server bridges stdio/TCP to WebSocket
+- Secure local passkey credential storage with time-bound authorization
+- Native Messaging Host ensures server availability
 
-## Installation
+### 2. Advanced Login/Signup Automation
+- **Magic link detection & automation**: Detects verification emails, extracts links, auto-navigates
+- **Errant modal detection & dismissal**: AI-powered detection of popups, cookie notices, subscription prompts
+- **Passkey proxy with time-bound auth**: Temporary authorization windows for credential access
+- Human-like delays and behavior patterns for stealth operation
 
-### Prerequisites
+### 3. Secure Passkey Proxy
+- WebAuthn passkey proxying through Chrome extension
+- Time-bound authorization system (configurable expiry)
+- Encrypted credential storage in Rust server
+- Zero remote dependencies for credential handling
 
-- Rust 1.70 or higher
-- Chrome or Chrome Canary
-- macOS (Linux and Windows support coming soon)
+### 4. Local LLM Serving
+- Offscreen document hosts local LLM inference
+- Evolving detection and evasion strategies
+- Privacy-first: all processing happens locally
+- Configurable model loading (customizable endpoints)
 
-### Build from Source
-
-1. Clone the repository:
-```bash
-git clone https://github.com/yourusername/agent-browser.git
-cd agent-browser
-```
-
-2. Build the server and extension:
-```bash
-cd server
-cargo build --release
-
-cd ../extension
-bun install
-bun run build
-```
-
-3. Install the Native Messaging Host:
-```bash
-./install-nmh.sh
-```
-
-4. Load the extension in Chrome:
-   - Open `chrome://extensions`
-   - Enable "Developer mode"
-   - Click "Load unpacked"
-   - Select `agent-browser/extension/public`
-
-## Configuration
-
-### Claude Desktop
-
-Add to your Claude Desktop configuration file:
-
-**macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-
-```json
-{
-  "mcpServers": {
-    "agent-browser": {
-      "command": "/usr/local/bin/agent-browser-server",
-      "env": {
-        "MCP_TCP": "1"
-      }
-    }
-  }
-}
-```
-
-### MCP CLI
-
-```bash
-mcp install agent-browser --command /usr/local/bin/agent-browser-server
-```
-
-## Available Tools
-
-### playwright_navigate
-
-Navigate to a URL in the browser.
-
-```json
-{
-  "name": "playwright_navigate",
-  "arguments": {
-    "url": "https://example.com"
-  }
-}
-```
-
-### playwright_click
-
-Click an element on the page.
-
-```json
-{
-  "name": "playwright_click",
-  "arguments": {
-    "selector": "button.submit"
-  }
-}
-```
-
-### playwright_fill
-
-Fill out an input field.
-
-```json
-{
-  "name": "playwright_fill",
-  "arguments": {
-    "selector": "input[name='email']",
-    "value": "user@example.com"
-  }
-}
-```
-
-### playwright_screenshot
-
-Take a screenshot of the current page.
-
-```json
-{
-  "name": "playwright_screenshot",
-  "arguments": {}
-}
-```
-
-Returns base64-encoded PNG image data.
-
-## Architecture
-
-Agent Browser consists of three components:
-
-1. **Rust Server** - MCP server that bridges TCP/stdio to WebSocket
-2. **Chrome Extension** - Background service worker and content scripts
-3. **Native Messaging Host** - Shim that ensures the server is running
-
-```
-MCP Client → Server (TCP/stdio) → WebSocket → Extension → Browser
-```
-
-The extension automatically injects content scripts into pages and maintains WebSocket connection to the server. The Native Messaging Host ensures the server is always available when the extension loads.
-
-## Development
-
-### Project Structure
-
-```
-agent-browser/
-├── server/                  # Rust MCP server
-│   └── src/
-│       ├── main.rs         # MCP + WebSocket bridge
-│       └── bin/
-│           └── nmh_shim.rs # Native messaging host
-├── extension/              # Chrome extension
-│   ├── entrypoints/
-│   │   ├── background.ts   # Service worker
-│   │   └── content.ts      # Content script
-│   └── lib/automation/     # Automation commands
-└── install-nmh.sh          # Installation script
-```
-
-### Running Tests
-
-```bash
-# Test raw JSON-RPC
-echo '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}' | nc localhost 8084
-
-# Test navigation
-echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"playwright_navigate","arguments":{"url":"https://example.com"}}}' | nc localhost 8084
-```
-
-## Roadmap
-
-- [ ] Windows and Linux support
-- [ ] Additional Playwright tools (hover, drag, evaluate)
-- [ ] Full-page screenshots
-- [ ] Element screenshots
-- [ ] Network request interception
-- [ ] Cookie management
-- [ ] Local storage access
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
+### 5. Privacy & Security
+- All local processing, no telemetry
+- No remote dependencies except configurable model loading
+- Open source, auditable codebase
+- MIT licensed
 
 ## License
 
 MIT License - see LICENSE file for details
-
-## Acknowledgments
-
-Built to simplify browser automation for AI agents. Inspired by Microsoft's Playwright MCP server.

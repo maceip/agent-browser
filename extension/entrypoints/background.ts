@@ -5,7 +5,11 @@
  * - Route messages to correct tab
  * - Auto-inject content script if dead
  * - Reconnect if disconnected
+ * - Handle WebAuthn passkey automation
  */
+
+import { WebAuthnProxy } from '../lib/webauthn/proxy';
+import { getEmailInboxAutomation } from '../lib/automation/email-inbox';
 
 // ============================================================================
 // Types
@@ -46,6 +50,9 @@ const pending = new Map<string, PendingRequest>();
 type ServerStatus = 'starting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 type CommandType = 'navigate' | 'click' | 'type' | 'wait' | 'screenshot' | null;
 type ErrorType = 'timeout' | 'injection_failed' | 'server_error' | null;
+type LlmStatus = 'idle' | 'downloading' | 'ready' | 'generating' | 'error';
+type EmailStatus = 'not_configured' | 'configured' | 'active';
+type MagicLinkStatus = 'idle' | 'detected' | 'checking_inbox' | 'found' | 'clicking';
 
 interface BadgeState {
   serverStatus: ServerStatus;
@@ -53,6 +60,15 @@ interface BadgeState {
   errorType: ErrorType;
   reconnectAttempt: number;
   errorMessage?: string;
+  llmStatus: LlmStatus;
+  llmProgress: number; // 0-1
+  llmDownloadedBytes: number;
+  llmTotalBytes: number;
+  emailStatus: EmailStatus;
+  emailAddress?: string;
+  emailProvider?: string;
+  magicLinkStatus: MagicLinkStatus;
+  magicLinkDomain?: string;
 }
 
 let badgeState: BadgeState = {
@@ -60,24 +76,228 @@ let badgeState: BadgeState = {
   activeCommand: null,
   errorType: null,
   reconnectAttempt: 0,
+  llmStatus: 'idle',
+  llmProgress: 0,
+  llmDownloadedBytes: 0,
+  llmTotalBytes: 0,
+  emailStatus: 'not_configured',
+  magicLinkStatus: 'idle',
 };
 
 // Tab groups
 let automationTabGroupId: number | null = null;
+
+// WebAuthn proxy
+let webAuthnProxy: WebAuthnProxy | null = null;
+
+// Offscreen document
+let offscreenReady = false;
 
 // ============================================================================
 // Badge Management
 // ============================================================================
 
 function updateBadge() {
-  // Priority: Error > Active Command > Reconnecting > Server Status
+  // Priority: Error > Onboarding Needed > Email Identity > LLM Download > Active Command > Reconnecting > Server Status
 
   if (badgeState.errorType) {
     // Error state
     chrome.action.setBadgeText({ text: '⚠' });
     chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
     const errorMsg = badgeState.errorMessage || 'Unknown error';
-    chrome.action.setTitle({ title: `Error: ${errorMsg}` });
+    const errorDetails = [
+      '⚠️ ERROR',
+      `Type: ${badgeState.errorType}`,
+      `Message: ${errorMsg}`,
+      `Time: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Check browser console (F12) for details'
+    ].join('\n');
+    chrome.action.setTitle({ title: errorDetails });
+    return;
+  }
+
+  // Onboarding needed badge (highest priority after errors)
+  if (badgeState.emailStatus === 'not_configured') {
+    chrome.action.setBadgeText({ text: '👋' });
+    chrome.action.setBadgeBackgroundColor({ color: '#ff6b35' }); // Orange
+    const onboardingInfo = [
+      '👋 SETUP REQUIRED',
+      '',
+      'Email automation is not configured',
+      '',
+      '→ Click this icon to start setup',
+      '→ You\'ll configure your email provider',
+      '→ Enable automatic magic link login',
+      '',
+      'Setup takes ~2 minutes'
+    ].join('\n');
+    chrome.action.setTitle({ title: onboardingInfo });
+    return;
+  }
+
+  // Magic link automation states (high priority)
+  if (badgeState.magicLinkStatus !== 'idle') {
+    switch (badgeState.magicLinkStatus) {
+      case 'detected':
+        chrome.action.setBadgeText({ text: '🔗' });
+        chrome.action.setBadgeBackgroundColor({ color: '#ff9500' }); // Orange
+        const detectedInfo = [
+          '🔗 MAGIC LINK DETECTED',
+          '',
+          `Email: ${badgeState.emailAddress || 'Unknown'}`,
+          `Domain: ${badgeState.magicLinkDomain || 'Unknown'}`,
+          `Time: ${new Date().toLocaleTimeString()}`,
+          '',
+          'Status: Waiting 3s for email to arrive...',
+          'Next: Opening email inbox automatically'
+        ].join('\n');
+        chrome.action.setTitle({ title: detectedInfo });
+        return;
+
+      case 'checking_inbox':
+        chrome.action.setBadgeText({ text: '📬' });
+        chrome.action.setBadgeBackgroundColor({ color: '#ff9500' });
+        const checkingInfo = [
+          '📬 CHECKING EMAIL INBOX',
+          '',
+          `Provider: ${badgeState.emailProvider || 'Unknown'}`,
+          `Email: ${badgeState.emailAddress || 'Unknown'}`,
+          `Looking for: ${badgeState.magicLinkDomain || 'magic link'}`,
+          '',
+          'Status: Searching recent emails...',
+          'Automation: Opening inbox in background'
+        ].join('\n');
+        chrome.action.setTitle({ title: checkingInfo });
+        return;
+
+      case 'found':
+        chrome.action.setBadgeText({ text: '✉️' });
+        chrome.action.setBadgeBackgroundColor({ color: '#00cc88' }); // Green
+        const foundInfo = [
+          '✉️ MAGIC LINK FOUND',
+          '',
+          `Domain: ${badgeState.magicLinkDomain || 'Unknown'}`,
+          `Email: ${badgeState.emailAddress || 'Unknown'}`,
+          '',
+          'Status: Magic link extracted from email',
+          'Next: Clicking link automatically...'
+        ].join('\n');
+        chrome.action.setTitle({ title: foundInfo });
+        return;
+
+      case 'clicking':
+        chrome.action.setBadgeText({ text: '👆' });
+        chrome.action.setBadgeBackgroundColor({ color: '#00cc88' });
+        const clickingInfo = [
+          '👆 CLICKING MAGIC LINK',
+          '',
+          `Domain: ${badgeState.magicLinkDomain || 'Unknown'}`,
+          `Time: ${new Date().toLocaleTimeString()}`,
+          '',
+          'Status: Navigating to authentication page...',
+          'You will be signed in automatically!'
+        ].join('\n');
+        chrome.action.setTitle({ title: clickingInfo });
+        return;
+    }
+  }
+
+  // Email identity active badge (shows when email is configured)
+  if (badgeState.emailStatus === 'configured' && !badgeState.activeCommand && badgeState.llmStatus !== 'downloading' && badgeState.llmStatus !== 'generating') {
+    const emailShort = badgeState.emailAddress?.split('@')[0].substring(0, 3).toUpperCase() || 'ID';
+    chrome.action.setBadgeText({ text: '📧' });
+    chrome.action.setBadgeBackgroundColor({ color: '#00cc88' }); // Green
+    const emailInfo = [
+      '📧 EMAIL IDENTITY ACTIVE',
+      '',
+      `Email: ${badgeState.emailAddress || 'Unknown'}`,
+      `Provider: ${badgeState.emailProvider || 'Unknown'}`,
+      '',
+      'Magic link automation is enabled',
+      'Forms matching this email will auto-login',
+      '',
+      'Status: Monitoring for signup/signin forms'
+    ].join('\n');
+    chrome.action.setTitle({ title: emailInfo });
+    return;
+  }
+
+  // LLM download progress (5 stages: 0-20%, 20-40%, 40-60%, 60-80%, 80-100%)
+  if (badgeState.llmStatus === 'downloading') {
+    const progress = badgeState.llmProgress;
+    let progressIcon = '';
+    let progressText = '';
+
+    if (progress < 0.2) {
+      progressIcon = '▱▱▱▱▱'; // 0-20%
+      progressText = `Downloading model: 0-20%`;
+    } else if (progress < 0.4) {
+      progressIcon = '▰▱▱▱▱'; // 20-40%
+      progressText = `Downloading model: 20-40%`;
+    } else if (progress < 0.6) {
+      progressIcon = '▰▰▱▱▱'; // 40-60%
+      progressText = `Downloading model: 40-60%`;
+    } else if (progress < 0.8) {
+      progressIcon = '▰▰▰▱▱'; // 60-80%
+      progressText = `Downloading model: 60-80%`;
+    } else {
+      progressIcon = '▰▰▰▰▱'; // 80-100%
+      progressText = `Downloading model: 80-100%`;
+    }
+
+    const mb = (badgeState.llmDownloadedBytes / (1024 * 1024)).toFixed(0);
+    const totalMb = (badgeState.llmTotalBytes / (1024 * 1024)).toFixed(0);
+    const percentComplete = (progress * 100).toFixed(1);
+    const remainingMb = totalMb - mb;
+
+    chrome.action.setBadgeText({ text: progressIcon });
+    chrome.action.setBadgeBackgroundColor({ color: '#8b5cf6' }); // Purple
+    const downloadInfo = [
+      `${progressIcon} DOWNLOADING LLM MODEL`,
+      '',
+      `Model: Gemma 3N-E2B IT`,
+      `Progress: ${percentComplete}% complete`,
+      `Downloaded: ${mb} MB / ${totalMb} MB`,
+      `Remaining: ${remainingMb} MB`,
+      '',
+      'Location: OPFS (Origin Private File System)',
+      'This is a one-time download'
+    ].join('\n');
+    chrome.action.setTitle({ title: downloadInfo });
+    return;
+  }
+
+  if (badgeState.llmStatus === 'ready') {
+    chrome.action.setBadgeText({ text: '🤖' });
+    chrome.action.setBadgeBackgroundColor({ color: '#8b5cf6' });
+    const llmInfo = [
+      '🤖 LLM READY',
+      '',
+      'Model: Gemma 3N-E2B IT',
+      'Status: Initialized and ready',
+      'Runtime: MediaPipe GenAI',
+      'Backend: WebGPU',
+      '',
+      'Ready to generate responses'
+    ].join('\n');
+    chrome.action.setTitle({ title: llmInfo });
+    return;
+  }
+
+  if (badgeState.llmStatus === 'generating') {
+    chrome.action.setBadgeText({ text: '💭' });
+    chrome.action.setBadgeBackgroundColor({ color: '#8b5cf6' });
+    const generatingInfo = [
+      '💭 LLM GENERATING',
+      '',
+      'Model: Gemma 3N-E2B IT',
+      'Status: Generating response...',
+      `Time: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Using WebGPU acceleration'
+    ].join('\n');
+    chrome.action.setTitle({ title: generatingInfo });
     return;
   }
 
@@ -90,9 +310,25 @@ function updateBadge() {
       wait: '⏱',
       screenshot: '📷',
     };
+    const commandNames: Record<NonNullable<CommandType>, string> = {
+      navigate: 'Navigate',
+      click: 'Click',
+      type: 'Type',
+      wait: 'Wait',
+      screenshot: 'Screenshot',
+    };
     chrome.action.setBadgeText({ text: commandIcons[badgeState.activeCommand] });
     chrome.action.setBadgeBackgroundColor({ color: '#3b82f6' });
-    chrome.action.setTitle({ title: `Active: ${badgeState.activeCommand}` });
+    const commandInfo = [
+      `${commandIcons[badgeState.activeCommand]} ${commandNames[badgeState.activeCommand].toUpperCase()} COMMAND`,
+      '',
+      `Command: ${badgeState.activeCommand}`,
+      `Started: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Status: Executing browser automation',
+      'Controlled by: MCP server'
+    ].join('\n');
+    chrome.action.setTitle({ title: commandInfo });
     return;
   }
 
@@ -100,9 +336,18 @@ function updateBadge() {
     // Reconnecting
     chrome.action.setBadgeText({ text: `↻${badgeState.reconnectAttempt}` });
     chrome.action.setBadgeBackgroundColor({ color: '#eab308' });
-    chrome.action.setTitle({
-      title: `Reconnecting (attempt ${badgeState.reconnectAttempt}/${MAX_RECONNECT_ATTEMPTS})`
-    });
+    const reconnectInfo = [
+      `↻ RECONNECTING`,
+      '',
+      `Attempt: ${badgeState.reconnectAttempt} / ${MAX_RECONNECT_ATTEMPTS}`,
+      `Time: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Status: Trying to reconnect to MCP server',
+      'Websocket connection lost',
+      '',
+      'Will retry automatically'
+    ].join('\n');
+    chrome.action.setTitle({ title: reconnectInfo });
     return;
   }
 
@@ -111,22 +356,61 @@ function updateBadge() {
     case 'starting':
       chrome.action.setBadgeText({ text: '⋯' });
       chrome.action.setBadgeBackgroundColor({ color: '#eab308' });
-      chrome.action.setTitle({ title: 'Server starting...' });
+      const startingInfo = [
+        '⋯ SERVER STARTING',
+        '',
+        'Status: Initializing connection',
+        'Target: ws://localhost:3000',
+        '',
+        'Please wait...'
+      ].join('\n');
+      chrome.action.setTitle({ title: startingInfo });
       break;
     case 'connected':
       chrome.action.setBadgeText({ text: '✓' });
       chrome.action.setBadgeBackgroundColor({ color: '#22c55e' });
-      chrome.action.setTitle({ title: 'Connected • Ready' });
+      const connectedInfo = [
+        '✓ CONNECTED',
+        '',
+        'MCP Server: Connected',
+        'WebSocket: Active',
+        `Connected at: ${new Date().toLocaleTimeString()}`,
+        '',
+        'Status: Ready for automation commands'
+      ].join('\n');
+      chrome.action.setTitle({ title: connectedInfo });
       break;
     case 'disconnected':
       chrome.action.setBadgeText({ text: '✗' });
       chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-      chrome.action.setTitle({ title: 'Disconnected' });
+      const disconnectedInfo = [
+        '✗ DISCONNECTED',
+        '',
+        'MCP Server: Not connected',
+        'WebSocket: Closed',
+        '',
+        'Action: Start the Rust server',
+        'Command: cargo run',
+        '',
+        'Extension will auto-reconnect when server starts'
+      ].join('\n');
+      chrome.action.setTitle({ title: disconnectedInfo });
       break;
     case 'error':
       chrome.action.setBadgeText({ text: '✗' });
       chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-      chrome.action.setTitle({ title: badgeState.errorMessage || 'Server error' });
+      const serverErrorInfo = [
+        '✗ SERVER ERROR',
+        '',
+        `Error: ${badgeState.errorMessage || 'Unknown error'}`,
+        `Time: ${new Date().toLocaleTimeString()}`,
+        '',
+        'Check if the Rust server is running',
+        'Try restarting the server',
+        '',
+        'See console for details'
+      ].join('\n');
+      chrome.action.setTitle({ title: serverErrorInfo });
       break;
   }
 }
@@ -215,10 +499,18 @@ function connect() {
         setBadgeState({ activeCommand: message.method as CommandType });
       }
 
-      // Handle screenshot in background (chrome.tabs.captureVisibleTab requires it)
+      // Handle commands that must run in background
       let response;
       if (message.method === 'screenshot') {
         response = await handleScreenshot(message);
+      } else if (message.method === 'passkey_enable') {
+        response = await handlePasskeyEnable(message);
+      } else if (message.method === 'passkey_status') {
+        response = await handlePasskeyStatus(message);
+      } else if (message.method === 'passkey_list') {
+        response = await handlePasskeyList(message);
+      } else if (message.method === 'passkey_clear') {
+        response = await handlePasskeyClear(message);
       } else {
         // Route to content script for other commands
         response = await routeToTab(message);
@@ -311,8 +603,13 @@ function scheduleReconnect() {
 
 async function routeToTab(message: Message): Promise<Response> {
   try {
-    // Get active tab (for now, we'll route to active tab)
-    let [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    // Get active tab - try current window first, then any window
+    let tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (tabs.length === 0) {
+      // No active tab in current window, try any active tab
+      tabs = await chrome.tabs.query({ active: true });
+    }
+    let [tab] = tabs;
 
     // Check if tab is valid for content script injection
     const isInvalidTab = !tab || !tab.id ||
@@ -480,6 +777,120 @@ async function handleScreenshot(message: Message): Promise<Response> {
 }
 
 // ============================================================================
+// Passkey Automation Handlers
+// ============================================================================
+
+async function handlePasskeyEnable(message: Message): Promise<Response> {
+  try {
+    if (!webAuthnProxy) {
+      throw new Error('WebAuthn proxy not initialized');
+    }
+
+    const enabled = message.params?.enabled ?? true;
+    webAuthnProxy.enableAutomation(enabled);
+
+    return {
+      id: message.id,
+      success: true,
+      result: {
+        enabled,
+        message: `Passkey automation ${enabled ? 'enabled' : 'disabled'}`
+      }
+    };
+  } catch (error: any) {
+    console.error('[Background] Passkey enable error:', error);
+    return {
+      id: message.id,
+      success: false,
+      error: error.message || 'Failed to enable passkey automation',
+    };
+  }
+}
+
+async function handlePasskeyStatus(message: Message): Promise<Response> {
+  try {
+    if (!webAuthnProxy) {
+      return {
+        id: message.id,
+        success: true,
+        result: {
+          attached: false,
+          automationMode: false,
+          credentialsCount: 0,
+          error: 'WebAuthn proxy not initialized'
+        }
+      };
+    }
+
+    const status = webAuthnProxy.getStatus();
+
+    return {
+      id: message.id,
+      success: true,
+      result: status
+    };
+  } catch (error: any) {
+    console.error('[Background] Passkey status error:', error);
+    return {
+      id: message.id,
+      success: false,
+      error: error.message || 'Failed to get passkey status',
+    };
+  }
+}
+
+async function handlePasskeyList(message: Message): Promise<Response> {
+  try {
+    if (!webAuthnProxy) {
+      throw new Error('WebAuthn proxy not initialized');
+    }
+
+    const credentials = webAuthnProxy.getStoredCredentials();
+
+    return {
+      id: message.id,
+      success: true,
+      result: {
+        credentials,
+        count: credentials.length
+      }
+    };
+  } catch (error: any) {
+    console.error('[Background] Passkey list error:', error);
+    return {
+      id: message.id,
+      success: false,
+      error: error.message || 'Failed to list passkeys',
+    };
+  }
+}
+
+async function handlePasskeyClear(message: Message): Promise<Response> {
+  try {
+    if (!webAuthnProxy) {
+      throw new Error('WebAuthn proxy not initialized');
+    }
+
+    webAuthnProxy.clearStoredCredentials();
+
+    return {
+      id: message.id,
+      success: true,
+      result: {
+        message: 'All stored passkeys cleared'
+      }
+    };
+  } catch (error: any) {
+    console.error('[Background] Passkey clear error:', error);
+    return {
+      id: message.id,
+      success: false,
+      error: error.message || 'Failed to clear passkeys',
+    };
+  }
+}
+
+// ============================================================================
 // Native Messaging Host - Ensure Server Running
 // ============================================================================
 
@@ -524,20 +935,247 @@ async function ensureServerRunning() {
 }
 
 // ============================================================================
+// Offscreen Document Management
+// ============================================================================
+
+async function setupOffscreenDocument() {
+  const offscreenUrl = chrome.runtime.getURL('offscreen.html');
+  const existingContexts = await chrome.runtime.getContexts({
+    contextTypes: ['OFFSCREEN_DOCUMENT'],
+  });
+
+  if (existingContexts.length > 0) {
+    console.log('[Background] Offscreen document already exists');
+    return;
+  }
+
+  console.log('[Background] Creating offscreen document...');
+  await chrome.offscreen.createDocument({
+    url: offscreenUrl,
+    reasons: ['WORKERS' as chrome.offscreen.Reason],
+    justification: 'Run LLM inference using MediaPipe WebAssembly',
+  });
+
+  console.log('[Background] Offscreen document created');
+}
+
+async function initializeLlm() {
+  console.log('[Background] Initializing LLM...');
+
+  try {
+    await setupOffscreenDocument();
+
+    // Send init message to offscreen
+    const response = await chrome.runtime.sendMessage({
+      type: 'llm_init',
+      modelUrl: 'https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/main/gemma-3n-E2B-it-int4-Web.litertlm'
+    });
+
+    if (response?.success) {
+      console.log('[Background] LLM initialization started');
+    } else {
+      console.error('[Background] LLM initialization failed:', response?.error);
+    }
+  } catch (error) {
+    console.error('[Background] Failed to initialize LLM:', error);
+  }
+}
+
+// Handle messages from offscreen document and content scripts
+chrome.runtime.onMessage.addListener((message, sender) => {
+  // Handle messages from offscreen document
+  if (sender.url === chrome.runtime.getURL('offscreen.html')) {
+    console.log('[Background] Message from offscreen:', message.type);
+
+    switch (message.type) {
+      case 'llm_progress':
+        setBadgeState({
+          llmStatus: 'downloading',
+          llmProgress: message.progress || 0,
+          llmDownloadedBytes: message.downloadedBytes || 0,
+          llmTotalBytes: message.totalBytes || 0,
+        });
+        break;
+
+      case 'llm_ready':
+        offscreenReady = true;
+        setBadgeState({
+          llmStatus: 'ready',
+          llmProgress: 1,
+        });
+        console.log('[Background] LLM is ready');
+        break;
+
+      case 'llm_chunk':
+        // Forward to MCP server via WebSocket if needed
+        console.log('[Background] LLM chunk:', message.text?.substring(0, 50));
+        break;
+
+      case 'llm_complete':
+        setBadgeState({ llmStatus: 'ready' });
+        console.log('[Background] LLM generation complete');
+        break;
+
+      case 'llm_error':
+        setBadgeState({
+          llmStatus: 'error',
+          errorType: 'server_error',
+          errorMessage: message.error || 'LLM error',
+        });
+        console.error('[Background] LLM error:', message.error);
+        break;
+    }
+    return;
+  }
+
+  // Handle messages from content scripts
+  if (message.type === 'magic_link_detected') {
+    handleMagicLinkDetection(message).catch(error => {
+      console.error('[Background] Error handling magic link:', error);
+      setBadgeState({
+        magicLinkStatus: 'idle',
+        errorType: 'server_error',
+        errorMessage: 'Magic link automation failed',
+      });
+    });
+    return;
+  }
+});
+
+// ============================================================================
+// Magic Link Automation
+// ============================================================================
+
+async function handleMagicLinkDetection(message: any) {
+  console.log('[Background] Magic link detected from content script:', message);
+
+  const { email, formType, url } = message;
+
+  // Extract domain from URL
+  const domain = new URL(url).hostname;
+
+  // Update badge: detected
+  setBadgeState({
+    magicLinkStatus: 'detected',
+    magicLinkDomain: domain,
+  });
+
+  // Wait a bit for email to arrive
+  console.log('[Background] Waiting 3 seconds for email to arrive...');
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  // Update badge: checking inbox
+  setBadgeState({ magicLinkStatus: 'checking_inbox' });
+
+  // Get inbox automation
+  const inboxAutomation = getEmailInboxAutomation();
+
+  // Automate login
+  const success = await inboxAutomation.automateLogin(domain);
+
+  if (success) {
+    console.log('[Background] Magic link automation successful!');
+    setBadgeState({
+      magicLinkStatus: 'clicking',
+    });
+
+    // Reset after a delay
+    setTimeout(() => {
+      setBadgeState({ magicLinkStatus: 'idle' });
+    }, 5000);
+  } else {
+    console.log('[Background] Magic link not found in inbox');
+    setBadgeState({
+      magicLinkStatus: 'idle',
+      errorType: 'server_error',
+      errorMessage: 'Magic link not found in email inbox',
+    });
+
+    // Clear error after 3 seconds
+    setTimeout(() => {
+      if (badgeState.errorType === 'server_error') {
+        setBadgeState({ errorType: null, errorMessage: undefined });
+      }
+    }, 3000);
+  }
+}
+
+// ============================================================================
+// Email Provider Status Check
+// ============================================================================
+
+async function checkEmailProviderStatus() {
+  try {
+    const stored = await chrome.storage.local.get('emailProviderConfig');
+
+    if (stored.emailProviderConfig?.setupComplete) {
+      console.log('[Background] Email provider configured:', stored.emailProviderConfig.email);
+      setBadgeState({
+        emailStatus: 'configured',
+        emailAddress: stored.emailProviderConfig.email,
+        emailProvider: stored.emailProviderConfig.provider
+      });
+    } else {
+      console.log('[Background] Email provider not configured');
+      setBadgeState({
+        emailStatus: 'not_configured'
+      });
+    }
+  } catch (error) {
+    console.error('[Background] Error checking email provider status:', error);
+    setBadgeState({
+      emailStatus: 'not_configured'
+    });
+  }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
+
+// Check email provider status first
+checkEmailProviderStatus();
 
 // Set initial badge state
 updateBadge();
 
+// Initialize WebAuthn proxy
+async function initializeWebAuthnProxy() {
+  try {
+    webAuthnProxy = new WebAuthnProxy();
+    await webAuthnProxy.initialize();
+    console.log('[Background] WebAuthn proxy initialized');
+  } catch (error) {
+    console.error('[Background] Failed to initialize WebAuthn proxy:', error);
+    webAuthnProxy = null;
+  }
+}
+
+initializeWebAuthnProxy();
+
+// Initialize LLM in offscreen
+initializeLlm();
+
 // Ensure server is running, then connect
 ensureServerRunning();
 
-// Handle extension icon click (optional - for debugging)
-chrome.action.onClicked.addListener(() => {
+// Handle extension icon click
+chrome.action.onClicked.addListener(async () => {
   console.log('[Background] Extension icon clicked');
+
+  // If onboarding needed, open welcome page
+  if (badgeState.emailStatus === 'not_configured') {
+    console.log('[Background] Opening welcome page for onboarding');
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL('welcome.html'),
+      active: true
+    });
+    return;
+  }
+
+  // Otherwise, ensure server is running (for debugging)
   if (!ws || ws.readyState !== WebSocket.OPEN) {
-    // Call NMH to ensure server is running before connecting
+    console.log('[Background] Reconnecting to server');
     ensureServerRunning();
   }
 });
@@ -555,6 +1193,31 @@ chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
         console.error('[Background] Failed to inject content script:', error);
       }
     }
+  }
+});
+
+// ============================================================================
+// First Install - Welcome Page
+// ============================================================================
+
+chrome.runtime.onInstalled.addListener(async (details) => {
+  if (details.reason === 'install') {
+    console.log('[Background] First install detected, opening welcome page');
+
+    // Check if already configured
+    const stored = await chrome.storage.local.get('emailProviderConfig');
+    if (stored.emailProviderConfig?.setupComplete) {
+      console.log('[Background] Email provider already configured');
+      return;
+    }
+
+    // Open welcome page
+    await chrome.tabs.create({
+      url: chrome.runtime.getURL('welcome.html'),
+      active: true
+    });
+  } else if (details.reason === 'update') {
+    console.log('[Background] Extension updated to version', chrome.runtime.getManifest().version);
   }
 });
 

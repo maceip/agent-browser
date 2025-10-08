@@ -1,0 +1,399 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Agent Browser - Passkey Demo</title>
+  <script src="https://unpkg.com/@simplewebauthn/browser@11.0.0/dist/bundle/index.es5.umd.min.js"></script>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+
+    .container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 500px;
+      width: 100%;
+      padding: 40px;
+    }
+
+    h1 {
+      color: #333;
+      margin-bottom: 10px;
+      font-size: 28px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 30px;
+      font-size: 14px;
+    }
+
+    .section {
+      margin-bottom: 30px;
+      padding: 20px;
+      background: #f7f7f7;
+      border-radius: 12px;
+    }
+
+    .section h2 {
+      color: #333;
+      margin-bottom: 15px;
+      font-size: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .input-group {
+      margin-bottom: 15px;
+    }
+
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #555;
+      font-weight: 500;
+      font-size: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    button:hover:not(:disabled) {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .message {
+      padding: 12px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 14px;
+      display: none;
+    }
+
+    .message.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+      display: block;
+    }
+
+    .message.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+      display: block;
+    }
+
+    .console {
+      margin-top: 15px;
+      background: #2d2d2d;
+      color: #f8f8f2;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 200px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    details {
+      margin-top: 10px;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 8px;
+      background: #e9ecef;
+      border-radius: 6px;
+      font-weight: 500;
+      user-select: none;
+    }
+
+    summary:hover {
+      background: #dee2e6;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Passkey Demo</h1>
+    <p class="subtitle">Agent Browser - Full WebAuthn Implementation</p>
+
+    <!-- Registration Section -->
+    <div class="section">
+      <h2>📝 Registration</h2>
+
+      <div class="input-group">
+        <label for="regUsername">Username</label>
+        <input type="text" id="regUsername" placeholder="Enter username" value="demo-user">
+      </div>
+
+      <div class="input-group">
+        <label for="regEmail">Email</label>
+        <input type="email" id="regEmail" placeholder="Enter email" value="demo@example.com">
+      </div>
+
+      <button id="btnRegister">Create Passkey</button>
+
+      <div id="regMessage" class="message"></div>
+
+      <details>
+        <summary>Debug Console</summary>
+        <div id="regConsole" class="console"></div>
+      </details>
+    </div>
+
+    <!-- Authentication Section -->
+    <div class="section">
+      <h2>🔓 Authentication</h2>
+
+      <div class="input-group">
+        <label for="authUsername">Username</label>
+        <input type="text" id="authUsername" placeholder="Enter username" value="demo-user">
+      </div>
+
+      <button id="btnAuthenticate">Sign In with Passkey</button>
+
+      <div id="authMessage" class="message"></div>
+
+      <details>
+        <summary>Debug Console</summary>
+        <div id="authConsole" class="console"></div>
+      </details>
+    </div>
+  </div>
+
+  <script>
+    const { startRegistration, startAuthentication, browserSupportsWebAuthn } = SimpleWebAuthnBrowser;
+
+    // Elements
+    const btnRegister = document.getElementById('btnRegister');
+    const btnAuthenticate = document.getElementById('btnAuthenticate');
+    const regMessage = document.getElementById('regMessage');
+    const authMessage = document.getElementById('authMessage');
+    const regConsole = document.getElementById('regConsole');
+    const authConsole = document.getElementById('authConsole');
+
+    // Helpers
+    function log(consoleEl, message, data = null) {
+      const timestamp = new Date().toLocaleTimeString();
+      let output = `[${timestamp}] ${message}`;
+      if (data) {
+        output += '\\n' + JSON.stringify(data, null, 2);
+      }
+      consoleEl.textContent += output + '\\n\\n';
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+    }
+
+    function showMessage(messageEl, text, type) {
+      messageEl.textContent = text;
+      messageEl.className = `message ${type}`;
+    }
+
+    // Check WebAuthn support
+    if (!browserSupportsWebAuthn()) {
+      showMessage(regMessage, 'WebAuthn not supported in this browser', 'error');
+      btnRegister.disabled = true;
+      btnAuthenticate.disabled = true;
+      log(regConsole, 'WebAuthn not supported ✗');
+    } else {
+      log(regConsole, 'WebAuthn supported ✓');
+      log(authConsole, 'WebAuthn supported ✓');
+    }
+
+    // Registration
+    btnRegister.addEventListener('click', async () => {
+      try {
+        btnRegister.disabled = true;
+        showMessage(regMessage, '', '');
+        regMessage.style.display = 'none';
+
+        const username = document.getElementById('regUsername').value;
+        const email = document.getElementById('regEmail').value;
+
+        if (!username || !email) {
+          throw new Error('Username and email are required');
+        }
+
+        log(regConsole, `Starting registration for ${username}`);
+
+        // Get registration options from server
+        const optionsResp = await fetch('/generate-registration-options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, email }),
+        });
+
+        if (!optionsResp.ok) {
+          const error = await optionsResp.json();
+          throw new Error(error.error || 'Failed to get registration options');
+        }
+
+        const options = await optionsResp.json();
+        log(regConsole, 'Registration options received:', options);
+
+        // Start WebAuthn registration
+        const attResp = await startRegistration({ optionsJSON: options });
+        log(regConsole, 'Registration response:', attResp);
+
+        // Verify registration with server
+        const verifyResp = await fetch('/verify-registration', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: options.sessionId,
+            username,
+            response: attResp,
+          }),
+        });
+
+        if (!verifyResp.ok) {
+          const error = await verifyResp.json();
+          throw new Error(error.error || 'Verification failed');
+        }
+
+        const verification = await verifyResp.json();
+        log(regConsole, 'Verification response:', verification);
+
+        if (verification.verified) {
+          showMessage(regMessage, '✓ Passkey created successfully!', 'success');
+          log(regConsole, 'Registration complete ✓');
+        } else {
+          throw new Error('Verification failed');
+        }
+
+      } catch (error) {
+        log(regConsole, 'Registration failed:', { error: error.message });
+        showMessage(regMessage, `Error: ${error.message}`, 'error');
+      } finally {
+        btnRegister.disabled = false;
+      }
+    });
+
+    // Authentication
+    btnAuthenticate.addEventListener('click', async () => {
+      try {
+        btnAuthenticate.disabled = true;
+        showMessage(authMessage, '', '');
+        authMessage.style.display = 'none';
+
+        const username = document.getElementById('authUsername').value;
+
+        if (!username) {
+          throw new Error('Username is required');
+        }
+
+        log(authConsole, `Starting authentication for ${username}`);
+
+        // Get authentication options from server
+        const optionsResp = await fetch('/generate-authentication-options', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username }),
+        });
+
+        if (!optionsResp.ok) {
+          const error = await optionsResp.json();
+          throw new Error(error.error || 'Failed to get authentication options');
+        }
+
+        const options = await optionsResp.json();
+        log(authConsole, 'Authentication options received:', options);
+
+        // Start WebAuthn authentication
+        const authResp = await startAuthentication({ optionsJSON: options });
+        log(authConsole, 'Authentication response:', authResp);
+
+        // Verify authentication with server
+        const verifyResp = await fetch('/verify-authentication', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId: options.sessionId,
+            username,
+            response: authResp,
+          }),
+        });
+
+        if (!verifyResp.ok) {
+          const error = await verifyResp.json();
+          throw new Error(error.error || 'Verification failed');
+        }
+
+        const verification = await verifyResp.json();
+        log(authConsole, 'Verification response:', verification);
+
+        if (verification.verified) {
+          showMessage(authMessage, '✓ Authentication successful!', 'success');
+          log(authConsole, 'Authentication complete ✓');
+        } else {
+          throw new Error('Verification failed');
+        }
+
+      } catch (error) {
+        log(authConsole, 'Authentication failed:', { error: error.message });
+        showMessage(authMessage, `Error: ${error.message}`, 'error');
+      } finally {
+        btnAuthenticate.disabled = false;
+      }
+    });
+
+    // Initial log
+    log(regConsole, 'Ready to register. Click "Create Passkey" to begin.');
+    log(authConsole, 'Ready to authenticate. Register first if you haven\'t.');
+  </script>
+</body>
+</html>

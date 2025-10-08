@@ -33,3 +33,5 @@ node_modules/
 .DS_Store
 .AppleDouble
 .LSOverride
+extension/key.pem
+.DS_Store
