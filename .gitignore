@@ -21,6 +21,11 @@ extension/EXTENSION_ID
 # Local data
 .agent-browser/
 
+# Environment variables
+.env
+.env.local
+.env.*.local
+
 # IDE
 .vscode/
 .idea/
