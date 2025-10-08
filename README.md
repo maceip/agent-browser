@@ -1,8 +1,10 @@
+<div align="center">
 <img width="505" height="371" alt="Agent Browser" src="https://github.com/user-attachments/assets/233a0046-3479-45c8-9369-87b71fd03437" />
 
-    a browser extension for agents
-    stealth + performance as primitives
-
+### a browser framework for exceptional agents
+stealth + performance as primitives
+ </div>
+ 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
