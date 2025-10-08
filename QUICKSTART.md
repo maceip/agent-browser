@@ -20,7 +20,7 @@ curl -fsSL https://bun.sh/install | bash
 ```bash
 git clone https://github.com/maceip/agent-browser.git
 cd agent-browser
-./install.sh
+./scripts/install.sh
 ```
 
 Wait for the installer to complete. It will show you the extension folder path.

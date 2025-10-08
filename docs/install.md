@@ -12,9 +12,9 @@ This project ships with helper scripts for a one-command setup, but everything c
 
 Run `rustc --version`, `bun --version`, and `node --version` to verify the toolchain before continuing.
 
-## Using `./install.sh`
+## Using `./scripts/install.sh`
 
-The root-level script performs the following in order:
+The installation script performs the following in order:
 
 1. Detects macOS or Linux and resolves Chrome native-messaging directories
 2. Verifies Rust, Bun, and Node.js are installed
@@ -72,7 +72,7 @@ If you prefer to run each step yourself:
    ```
 6. **Load the unpacked extension** through `chrome://extensions/`, enable *Developer mode*, and choose `extension/public`.
 
-Scripts such as `install-nmh.sh` encapsulate steps 1–5 if you want a slimmer automation surface.
+Scripts such as `scripts/install-nmh.sh` encapsulate steps 1–5 if you want a slimmer automation surface.
 
 ## Upgrades
 
@@ -80,8 +80,8 @@ Scripts such as `install-nmh.sh` encapsulate steps 1–5 if you want a slimmer a
 - Rebuild the extension with `bun run build` whenever code under `extension/` changes
 - If `manifest.json` updates its key, recompute the extension ID and re-copy your native messaging manifests
 
-`./verify-install.sh` checks binaries, manifests, and ports. Run it after upgrading to confirm everything is wired correctly.
+`./scripts/verify-install.sh` checks binaries, manifests, and ports. Run it after upgrading to confirm everything is wired correctly.
 
 ## Uninstall
 
-Use `./uninstall-nmh.sh` to remove the native messaging host and binaries placed by `install.sh`. You can also manually delete `/usr/local/bin/agent-browser-server`, `/usr/local/bin/agent-browser-nmh`, and the manifest files under your Chrome profile.
+Use `./scripts/uninstall-nmh.sh` to remove the native messaging host and binaries placed by `install.sh`. You can also manually delete `/usr/local/bin/agent-browser-server`, `/usr/local/bin/agent-browser-nmh`, and the manifest files under your Chrome profile.

@@ -34,7 +34,7 @@ Agent Browser connects Claude to Chrome via a Rust MCP server and browser extens
 ```bash
 git clone https://github.com/maceip/agent-browser.git
 cd agent-browser
-./install.sh
+./scripts/install.sh
 ```
 
 Load the extension:

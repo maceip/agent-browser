@@ -1,4 +1,4 @@
-/**
+/*!
  * Credential Store with Time-Window Authorization
  *
  * Security model:
@@ -289,7 +289,7 @@ impl CredentialStore {
                     .duration_since(UNIX_EPOCH)
                     .unwrap()
                     .as_secs();
-                if u > now { u - now } else { 0 }
+                u.saturating_sub(now)
             })
         })
     }

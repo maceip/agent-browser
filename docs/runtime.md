@@ -36,8 +36,8 @@ Chrome-specific state (email configuration, badge status) resides in `chrome.sto
 
 ## Helpful scripts
 
-- `./launch-browser.sh` — starts Chrome with an isolated profile and loads the extension
-- `./verify-install.sh` — checks binaries, manifests, extension build artefacts, and bound ports
-- `scripts/test-nmh.js` — quick check that the native messaging host responds
+- `./scripts/launch-browser.sh` — starts Chrome with an isolated profile and loads the extension
+- `./scripts/verify-install.sh` — checks binaries, manifests, extension build artefacts, and bound ports
+- `./scripts/test-nmh.js` — quick check that the native messaging host responds
 
 Run these whenever you suspect Chrome cannot reach the server, the badge stays red, or MCP calls fail.

@@ -1,4 +1,4 @@
-/**
+/*!
  * Agent Browser Server
  *
  * THREE INTERFACES (all run simultaneously):
@@ -162,10 +162,10 @@ async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpc
     // Handle built-in methods
     match req.method.as_str() {
         "ping" => {
-            return JsonRpcRes::ok(id, serde_json::json!({"ok": true}));
+            JsonRpcRes::ok(id, serde_json::json!({"ok": true}))
         }
         "initialize" => {
-            return JsonRpcRes::ok(
+            JsonRpcRes::ok(
                 id,
                 serde_json::json!({
                     "protocolVersion": "2024-11-05",
@@ -177,10 +177,10 @@ async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpc
                         "version": "0.1.0"
                     }
                 }),
-            );
+            )
         }
         "tools/list" => {
-            return JsonRpcRes::ok(
+            JsonRpcRes::ok(
                 id,
                 serde_json::json!({
                     "tools": [
@@ -352,7 +352,7 @@ async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpc
                         }
                     ]
                 }),
-            );
+            )
         }
         "tools/call" => {
             // Extract tool name and arguments from MCP format
