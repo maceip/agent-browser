@@ -1,37 +1,29 @@
-# Rust
-/server/target/
-/server/Cargo.lock
+# Extension private key
+extension/key.pem
+*.pem
 
-# Node/Bun
-node_modules/
-*.log
-
-# Extension build artifacts
-/extension/public/*.js
-/extension/public/*.js.map
-
-# System files
+# macOS
 .DS_Store
-*.swp
-*.swo
-*~
 
-# Temporary files
-*.tmp
-.env
-.env.local
+# Node
+node_modules/
+bun.lockb
+
+# Rust
+target/
+Cargo.lock
+
+# Build outputs
+extension/public/*.js
+extension/public/*.js.map
+extension/EXTENSION_ID
+
+# Local data
+.agent-browser/
 
 # IDE
 .vscode/
 .idea/
-*.iml
-
-# Native Messaging Host logs
-/tmp/
-
-# macOS
-.DS_Store
-.AppleDouble
-.LSOverride
-extension/key.pem
-.DS_Store
+*.swp
+*.swo
+*~

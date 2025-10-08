@@ -1,6 +1,4 @@
-/**
- * MCP JSON-RPC types
- */
+//! MCP JSON-RPC types
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
