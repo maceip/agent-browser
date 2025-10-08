@@ -1,6 +1,6 @@
 <img width="505" height="371" alt="Agent Browser" src="https://github.com/user-attachments/assets/233a0046-3479-45c8-9369-87b71fd03437" />
 
-    mcp-native browser automation
+    a browser extension for agents
     stealth + performance as primitives
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
