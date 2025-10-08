@@ -9,7 +9,7 @@ stealth + performance as primitives
 
 ## Overview
 
-Agent Browser is an undetectable browser automation platform for agents that want to browse the web. Its designed to be 10x faster than browser-use / playwright. It includes a native messaging host, a rust MCP <> websocket relay and a passkey proxy.
+Agent Browser is an undetectable browser automation platform for agents that want to browse the web. Its designed to be 10x faster than browser-use / playwright. It includes a native messaging host, a rust MCP <> websocket relay and a passkey proxy. It will automatically detect and dismiss errant modals, resolve magic-link / otp logins, supports creating and authenticating with uv passkeys, and has its own fallback llm to improve, evade, and outperform [gemma3n-e2b]
 
 ## Quick Start
 
