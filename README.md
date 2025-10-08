@@ -1,12 +1,13 @@
 <img width="505" height="371" alt="Agent Browser" src="https://github.com/user-attachments/assets/233a0046-3479-45c8-9369-87b71fd03437" />
 
-MCP-native browser automation for Claude with stealth and performance as primitives.
+    mcp-native browser automation
+    stealth + performance as primitives
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-Agent Browser connects Claude to Chrome via a Rust MCP server and browser extension. Drive browser automation, manage passkey credentials with time-bound authorization, and leverage local LLM inference for intelligent modal handling and automation assistance.
+Agent Browser is an undetectable browser automation platform for agents that want to browse the web. Its designed to be 10x faster than browser-use / playwright. It includes a native messaging host, a rust MCP <> websocket relay and a passkey proxy.
 
 ## Quick Start
 
@@ -29,7 +30,7 @@ claude mcp add agent-browser /usr/local/bin/agent-browser-server
 
 Test: Ask Claude to navigate to a website and take a screenshot.
 
-See [QUICKSTART.md](QUICKSTART.md) for detailed setup and [docs/install.md](docs/install.md) for manual installation steps.
+See [docs/QUICKSTART.md](docs/QUICKSTART.md) for detailed setup and [docs/install.md](docs/install.md) for manual installation steps.
 
 ## Features
 
@@ -63,7 +64,7 @@ See [docs/email-provider.md](docs/email-provider.md) and [docs/passkey-authoriza
 
 ## Documentation
 
-- [QUICKSTART.md](QUICKSTART.md) - Installation and setup guide
+- [docs/QUICKSTART.md](docs/QUICKSTART.md) - Installation and setup guide
 - [docs/architecture.md](docs/architecture.md) - System architecture and data flow diagrams
 - [docs/install.md](docs/install.md) - Manual installation steps
 - [docs/runtime.md](docs/runtime.md) - Runtime operations and configuration
