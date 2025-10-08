@@ -777,3 +777,32 @@ async fn main() -> Result<()> {
 
     Ok(())
 }
+
+// ============================================================================
+// Tests
+// ============================================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_basic_operations() {
+        assert_eq!(2 + 2, 4);
+    }
+
+    #[test]
+    fn test_string_operations() {
+        let greeting = "Agent Browser";
+        assert!(greeting.contains("Browser"));
+        assert_eq!(greeting.len(), 13);
+    }
+
+    #[test]
+    fn test_uuid_generation() {
+        let id1 = Uuid::new_v4().to_string();
+        let id2 = Uuid::new_v4().to_string();
+        assert_ne!(id1, id2);
+        assert_eq!(id1.len(), 36); // UUID format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+    }
+}

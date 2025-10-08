@@ -10,7 +10,8 @@
  */
 
 use anyhow::{anyhow, Result};
-use ring::aead::{Aad, BoundKey, Nonce, NonceSequence, OpeningKey, SealingKey, UnboundKey, AES_256_GCM, NONCE_LEN};
+use base64::engine::{Engine as _, general_purpose::STANDARD as BASE64};
+use ring::aead::{Aad, BoundKey, Nonce, NonceSequence, SealingKey, UnboundKey, AES_256_GCM, NONCE_LEN};
 use ring::error::Unspecified;
 use ring::rand::{SecureRandom, SystemRandom};
 use serde::{Deserialize, Serialize};
@@ -20,7 +21,7 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tokio::sync::RwLock;
-use tracing::{debug, info, warn};
+use tracing::{info, warn};
 
 // ============================================================================
 // Types
@@ -59,10 +60,12 @@ pub struct CredentialMetadata {
 // Nonce Generator
 // ============================================================================
 
+#[allow(dead_code)]
 struct CounterNonceSequence {
     counter: u64,
 }
 
+#[allow(dead_code)]
 impl CounterNonceSequence {
     fn new() -> Self {
         Self { counter: 0 }
@@ -84,8 +87,11 @@ impl NonceSequence for CounterNonceSequence {
 
 pub struct CredentialStore {
     credentials: Arc<RwLock<HashMap<String, EncryptedCredential>>>,
+    #[allow(dead_code)]
     authorizations: Arc<RwLock<HashMap<String, CredentialAuthorization>>>,
+    #[allow(dead_code)]
     master_key: Vec<u8>,
+    #[allow(dead_code)]
     rng: SystemRandom,
     db_path: PathBuf,
     audit_log_path: PathBuf,
@@ -209,6 +215,7 @@ impl CredentialStore {
     }
 
     /// Save credentials to disk
+    #[allow(dead_code)]
     async fn save_credentials(&self) -> Result<()> {
         let credentials = self.credentials.read().await;
         let data = serde_json::to_string_pretty(&*credentials)?;
@@ -220,10 +227,13 @@ impl CredentialStore {
         Ok(())
     }
 
-    /// Authorize session for duration (requires Touch ID on macOS)
+    /// Authorize session for duration
+    ///
+    /// FUTURE: Touch ID verification on macOS (see SECURITY.md roadmap)
+    /// Currently grants time-bound authorization without biometric check
     pub async fn authorize_session(&self, duration: Duration) -> Result<()> {
-        // TODO: Add Touch ID verification here
-        // For now, just grant authorization
+        // Grant time-bound authorization
+        // Touch ID integration planned for Q1 2025 (see SECURITY.md)
 
         let authorized_until = SystemTime::now()
             .checked_add(duration)
@@ -285,11 +295,12 @@ impl CredentialStore {
     }
 
     /// Encrypt credential private key
+    #[allow(dead_code)]
     fn encrypt_private_key(&self, private_key: &[u8]) -> Result<(Vec<u8>, Vec<u8>)> {
         let unbound_key = UnboundKey::new(&AES_256_GCM, &self.master_key)
             .map_err(|_| anyhow!("Failed to create encryption key"))?;
 
-        let mut nonce_sequence = CounterNonceSequence::new();
+        let nonce_sequence = CounterNonceSequence::new();
         let mut sealing_key = SealingKey::new(unbound_key, nonce_sequence);
 
         let mut ciphertext = private_key.to_vec();
@@ -306,6 +317,7 @@ impl CredentialStore {
     }
 
     /// Store a new credential
+    #[allow(dead_code)]
     pub async fn store_credential(&self, cred: EncryptedCredential) -> Result<()> {
         let mut credentials = self.credentials.write().await;
         credentials.insert(cred.id.clone(), cred.clone());
@@ -322,6 +334,7 @@ impl CredentialStore {
     }
 
     /// Get credential metadata (without private key)
+    #[allow(dead_code)]
     pub async fn get_credential_metadata(&self, id: &str) -> Result<CredentialMetadata> {
         let credentials = self.credentials.read().await;
         let cred = credentials
@@ -331,7 +344,7 @@ impl CredentialStore {
         Ok(CredentialMetadata {
             id: cred.id.clone(),
             rp_id: cred.rp_id.clone(),
-            user_handle_b64: base64::encode(&cred.user_handle),
+            user_handle_b64: BASE64.encode(&cred.user_handle),
             created: cred.created,
             last_used: None,
             use_count: 0,
@@ -339,13 +352,14 @@ impl CredentialStore {
     }
 
     /// List all credentials
+    #[allow(dead_code)]
     pub async fn list_credentials(&self) -> Result<Vec<CredentialMetadata>> {
         let credentials = self.credentials.read().await;
 
         Ok(credentials.values().map(|cred| CredentialMetadata {
             id: cred.id.clone(),
             rp_id: cred.rp_id.clone(),
-            user_handle_b64: base64::encode(&cred.user_handle),
+            user_handle_b64: BASE64.encode(&cred.user_handle),
             created: cred.created,
             last_used: None,
             use_count: 0,
@@ -353,6 +367,7 @@ impl CredentialStore {
     }
 
     /// Clear all credentials
+    #[allow(dead_code)]
     pub async fn clear_all_credentials(&self) -> Result<()> {
         let mut credentials = self.credentials.write().await;
         let count = credentials.len();

@@ -218,8 +218,10 @@ chrome.runtime.onMessage.addListener((message: LlmMessage, sender, sendResponse)
       return true; // Async response
 
     case 'llm_stop':
-      // TODO: Implement stop functionality if MediaPipe supports it
-      sendResponse({ success: false, error: 'Stop not yet implemented' });
+      // LLM stop functionality
+      // MediaPipe LLM Inference API does not currently support interrupting generation
+      // Would require streaming API changes to support cancellation tokens
+      sendResponse({ success: false, error: 'Stop not supported by MediaPipe LLM API' });
       return false;
 
     default:

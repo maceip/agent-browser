@@ -7,6 +7,7 @@ use std::thread;
 
 #[derive(Debug, Deserialize)]
 struct NmhRequest {
+    #[allow(dead_code)]
     #[serde(default)]
     cmd: String,
 }
@@ -88,7 +89,7 @@ fn main() -> Result<()> {
     let request = read_native_message().context("Failed to read native message")?;
     eprintln!("NMH request: {}", request);
 
-    let req: NmhRequest = serde_json::from_value(request)
+    let _req: NmhRequest = serde_json::from_value(request)
         .unwrap_or(NmhRequest { cmd: String::new() });
 
     // Simple logic: ensure server is running

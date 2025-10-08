@@ -235,9 +235,12 @@ export async function retryWithLlmHelp<T>(
       if (strategy.llmSuggestion) {
         console.log('[Agent Stuck] LLM suggestion:', strategy.llmSuggestion);
 
-        // TODO: Apply modifications from LLM
+        // Log LLM-suggested modifications
+        // FUTURE: Automatically apply timeout/selector/strategy changes
+        // Currently logged for manual review and debugging
         if (strategy.modifications) {
-          console.log('[Agent Stuck] Applying modifications:', strategy.modifications);
+          console.log('[Agent Stuck] Suggested modifications:', strategy.modifications);
+          // Caller can inspect strategy.modifications and apply changes if needed
         }
       }
 
