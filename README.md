@@ -21,111 +21,104 @@
         ░
 ```
 
-**mcp-native browser automation, with stealth and performance as primitives**
+MCP-native browser automation for Claude with stealth and performance as primitives.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ## Overview
 
-Agent Browser pairs a Rust MCP server with a Chrome extension and native messaging host to drive full-fidelity browser automation from Claude. The Rust server exposes automation and passkey tooling over MCP (stdio or TCP) while the extension handles in-browser actions, local LLM inference, and UX surface. Native messaging keeps the server alive whenever Chrome is running, and helper scripts manage installation plus launch flows so the toolchain behaves like a single application.
+Agent Browser connects Claude to Chrome via a Rust MCP server and browser extension. Drive browser automation, manage passkey credentials with time-bound authorization, and leverage local LLM inference for intelligent modal handling and automation assistance.
 
-## Prerequisites
-
-- macOS 13+ or Linux with Google Chrome (Stable, Beta, Dev, or Canary) installed
-- Rust toolchain with `cargo`, Bun, and Node.js 18+ available on `PATH`
-- Anthropic Claude CLI (`claude`) for MCP registration
-- `sudo` access to write `/usr/local/bin` and create Chrome native-messaging manifests
-- (Optional) `nc` or similar for quick MCP connectivity tests
-
-If you need finer-grained setup steps or a manual install path, see `docs/install.md`.
-
-## Quickstart
+## Quick Start
 
 ```bash
-# 1. Install components
+git clone https://github.com/maceip/agent-browser.git
+cd agent-browser
 ./install.sh
-
-# 2. Load extension
-# Open chrome://extensions/ → Enable "Developer mode" → "Load unpacked" → Select extension/public
-
-# 3. Configure email provider & passkey authorization
-# Click extension icon → Configure email provider for magic link automation
-# Set passkey authorization window (default: 5 minutes) for time-bound credential access
-
-# 4. Add MCP server to Claude Code
-claude mcp add agent-browser /usr/local/bin/agent-browser-server --env MCP_STDIO=1
-
-# 5. Test it
-# Ask Claude: "Navigate to example.com and take a screenshot"
 ```
 
-Launch Chrome with extension pre-loaded: `./launch-browser.sh`
+Load the extension:
+1. Open `chrome://extensions/`
+2. Enable "Developer mode"
+3. Click "Load unpacked"
+4. Select `extension/public`
 
-What `./install.sh` does:
-- Builds the Rust server and native messaging shim in release mode
-- Installs binaries to `/usr/local/bin` (requires `sudo`)
-- Computes the Chrome extension ID and writes native messaging manifests for each installed Chrome channel
-- Installs JavaScript dependencies with Bun and builds the extension bundle
-- Guides you through loading the unpacked extension (`extension/public`)
+Register MCP server with Claude:
+```bash
+claude mcp add agent-browser /usr/local/bin/agent-browser-server --env MCP_STDIO=1
+```
 
-For change control or air-gapped environments, follow the manual steps in `docs/install.md`.
+Test: Ask Claude to navigate to a website and take a screenshot.
 
-## Configure Automation
-
-- Email provider & magic link automation: see `docs/email-provider.md`
-- Passkey authorization windows, storage, and lifecycle: see `docs/passkey-authorization.md`
-
-The welcome screen inside the extension surfaces these settings, but the docs capture defaults, sample values, and CLI-equivalent commands.
-
-## Runtime & Operations
-
-- MCP endpoints: TCP on `localhost:8084` (set `MCP_TCP=1`) and stdio when launched via Claude (`MCP_STDIO=1`)
-- WebSocket bridge for the extension listens on `localhost:8085`
-- Passkey vault, audit log, and master key live in `~/.agent-browser/`
-- Chrome storage (per profile) retains email provider and automation preferences
-- `./verify-install.sh` runs post-install health checks, and `./launch-browser.sh` opens Chrome with an isolated profile plus the extension pre-loaded
-
-Deeper reference material (environment variables, storage layout, log locations, and recommended observability hooks) is in `docs/runtime.md`, while `docs/troubleshooting.md` captures known issues and verification flows.
+See [QUICKSTART.md](QUICKSTART.md) for detailed setup and [docs/install.md](docs/install.md) for manual installation steps.
 
 ## Features
 
-### 1. Rust WebSocket Server & Passkey Storage
-- High-performance Rust MCP server bridges stdio/TCP to WebSocket
-- Secure local passkey credential storage with time-bound authorization
-- Native Messaging Host ensures server availability
+- Full-fidelity Chrome automation via MCP protocol
+- Smart GDPR and cookie consent modal detection and dismissal
+- Secure WebAuthn credential storage with time-bound authorization
+- Automatic magic link email verification detection and navigation
+- Local LLM inference for automation assistance
+- Privacy-first architecture with no telemetry
 
-### 2. Advanced Login/Signup Automation
-- **Magic link detection & automation**: Detects verification emails, extracts links, auto-navigates
-- **Errant modal detection & dismissal**: AI-powered detection of popups, cookie notices, subscription prompts
-- **Passkey proxy with time-bound auth**: Temporary authorization windows for credential access
-- Human-like delays and behavior patterns for stealth operation
+## Architecture
 
-### 3. Secure Passkey Proxy
-- WebAuthn passkey proxying through Chrome extension
-- Time-bound authorization system (configurable expiry)
-- Encrypted credential storage in Rust server
-- Zero remote dependencies for credential handling
+- Rust MCP server with stdio and TCP interfaces
+- WebSocket bridge to Chrome extension on localhost:8085
+- Native messaging host for server lifecycle management
+- AES-256-GCM encrypted credential storage in `~/.agent-browser/`
+- Offscreen document for local LLM inference
 
-### 4. Local LLM Serving
-- Offscreen document hosts local LLM inference
-- Evolving detection and evasion strategies
-- Privacy-first: all processing happens locally
-- Configurable model loading (customizable endpoints)
+See [docs/architecture.md](docs/architecture.md) for diagrams and detailed component information, or [docs/runtime.md](docs/runtime.md) for operational details.
 
-### 5. Privacy & Security
-- All local processing, no telemetry
-- No remote dependencies except configurable model loading
-- Open source, auditable codebase
-- MIT licensed
+## Configuration
 
+Configure email providers for magic link automation and passkey authorization windows via the extension welcome screen. Configuration options include:
+
+- Email provider settings for IMAP/OAuth access
+- Authorization window duration (default: 5 minutes)
+- MCP endpoint selection (stdio or TCP on localhost:8084)
+- Automation mode preferences and delays
+
+See [docs/email-provider.md](docs/email-provider.md) and [docs/passkey-authorization.md](docs/passkey-authorization.md) for configuration details.
+
+## Documentation
+
+- [QUICKSTART.md](QUICKSTART.md) - Installation and setup guide
+- [docs/architecture.md](docs/architecture.md) - System architecture and data flow diagrams
+- [docs/install.md](docs/install.md) - Manual installation steps
+- [docs/runtime.md](docs/runtime.md) - Runtime operations and configuration
+- [docs/email-provider.md](docs/email-provider.md) - Email configuration
+- [docs/passkey-authorization.md](docs/passkey-authorization.md) - Credential management
+- [docs/troubleshooting.md](docs/troubleshooting.md) - Common issues and solutions
+
+## Security
+
+Agent Browser prioritizes security and privacy:
+
+- All processing happens locally with no telemetry
+- Credentials encrypted at rest with AES-256-GCM
+- Time-bound authorization for credential access
+- Comprehensive audit logging of all credential operations
+- No external dependencies except model downloads
+
+See [SECURITY.md](SECURITY.md) for security policy, threat model, and vulnerability reporting.
+
+## Contributing
+
+Contributions are welcome. See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on:
+
+- Reporting bugs and requesting features
+- Development setup and workflow
+- Code style and testing requirements
+- Pull request process
+
+Security vulnerabilities should be reported privately to security@maceip.com rather than filing public issues.
 
 ## License
 
-MIT License - see LICENSE file for details
+MIT License. See [LICENSE](LICENSE) for details.
 
-## Contributing & Support
+## Project Status
 
-- Issues & feature requests: open a GitHub issue or discussion
-- Pull requests welcome—start by outlining proposed changes and include tests or repro steps where possible
-- Security reports: disclose privately via the maintainers before filing a public issue
-- Project status: actively developed; see `docs/troubleshooting.md` for current known gaps and workarounds
+Version 0.1.0 in active development. See [CHANGELOG.md](CHANGELOG.md) for version history.

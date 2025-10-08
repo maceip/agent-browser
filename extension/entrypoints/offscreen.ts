@@ -37,7 +37,7 @@ interface LlmResponse {
 let llmInference: LlmInference | null = null;
 let isInitializing = false;
 
-const DEFAULT_MODEL_URL = 'https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/main/gemma-3n-E2B-it-int4-Web.litertlm';
+const DEFAULT_MODEL_URL = 'https://storage.googleapis.com/ktex-static/gemma-3n-E2B-it-int4-Web.litertlm';
 
 // ============================================================================
 // Model Loading with Progress Tracking

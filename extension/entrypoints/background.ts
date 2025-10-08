@@ -968,7 +968,7 @@ async function initializeLlm() {
     // Send init message to offscreen
     const response = await chrome.runtime.sendMessage({
       type: 'llm_init',
-      modelUrl: 'https://huggingface.co/google/gemma-3n-E2B-it-litert-lm/resolve/main/gemma-3n-E2B-it-int4-Web.litertlm'
+      modelUrl: 'https://storage.googleapis.com/ktex-static/gemma-3n-E2B-it-int4-Web.litertlm'
     });
 
     if (response?.success) {
