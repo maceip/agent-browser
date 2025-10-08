@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Passkey Automation Control</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
+    }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      background: #f0f0f0;
+      font-family: monospace;
+    }
+    button {
+      padding: 12px 24px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-primary {
+      background: #667eea;
+      color: white;
+    }
+    .btn-primary:hover {
+      background: #5568d3;
+    }
+    .btn-success {
+      background: #22c55e;
+      color: white;
+    }
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    .btn-info {
+      background: #3b82f6;
+      color: white;
+    }
+    .output {
+      margin-top: 20px;
+      padding: 15px;
+      background: #2d2d2d;
+      color: #f8f8f2;
+      border-radius: 8px;
+      font-family: 'Monaco', monospace;
+      font-size: 12px;
+      white-space: pre-wrap;
+      max-height: 400px;
+      overflow-y: auto;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Passkey Automation Control</h1>
+
+    <div class="status" id="status">
+      Status: Unknown
+    </div>
+
+    <div>
+      <button class="btn-primary" onclick="checkStatus()">Check Status</button>
+      <button class="btn-success" onclick="enableAutomation()">Enable Automation</button>
+      <button class="btn-danger" onclick="disableAutomation()">Disable Automation</button>
+    </div>
+
+    <div>
+      <button class="btn-info" onclick="listCredentials()">List Credentials</button>
+      <button class="btn-danger" onclick="clearCredentials()">Clear Credentials</button>
+    </div>
+
+    <div class="output" id="output">
+Waiting for commands...
+
+Instructions:
+1. Click "Enable Automation" to activate passkey automation
+2. Go to http://localhost:3000/passkey-demo.html
+3. Click "Create Passkey" - it will be created automatically!
+4. Click "Sign In with Passkey" - authentication will happen automatically!
+    </div>
+  </div>
+
+  <script>
+    const output = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+
+    function log(message) {
+      const timestamp = new Date().toLocaleTimeString();
+      output.textContent += `\n[${timestamp}] ${message}`;
+      output.scrollTop = output.scrollHeight;
+    }
+
+    function updateStatus(status) {
+      statusEl.textContent = `Status: ${JSON.stringify(status, null, 2)}`;
+    }
+
+    async function sendCommand(method, params = {}) {
+      try {
+        log(`Sending command: ${method}`);
+
+        // Send message to background script via chrome.runtime
+        const response = await chrome.runtime.sendMessage({
+          method: method,
+          params: params,
+          id: Date.now()
+        });
+
+        log(`Response: ${JSON.stringify(response, null, 2)}`);
+        return response;
+      } catch (error) {
+        log(`Error: ${error.message}`);
+        throw error;
+      }
+    }
+
+    async function checkStatus() {
+      const response = await sendCommand('passkey_status');
+      if (response.success) {
+        updateStatus(response.result);
+      }
+    }
+
+    async function enableAutomation() {
+      const response = await sendCommand('passkey_enable', { enabled: true });
+      if (response.success) {
+        log('✓ Automation ENABLED');
+        await checkStatus();
+      }
+    }
+
+    async function disableAutomation() {
+      const response = await sendCommand('passkey_enable', { enabled: false });
+      if (response.success) {
+        log('✓ Automation DISABLED');
+        await checkStatus();
+      }
+    }
+
+    async function listCredentials() {
+      const response = await sendCommand('passkey_list');
+      if (response.success) {
+        log(`Stored credentials:\n${JSON.stringify(response.result, null, 2)}`);
+      }
+    }
+
+    async function clearCredentials() {
+      if (confirm('Clear all stored credentials?')) {
+        const response = await sendCommand('passkey_clear');
+        if (response.success) {
+          log('✓ Credentials cleared');
+          await checkStatus();
+        }
+      }
+    }
+
+    // Check status on load
+    checkStatus();
+  </script>
+</body>
+</html>

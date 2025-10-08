@@ -50,9 +50,15 @@ const pending = new Map<string, PendingRequest>();
 type ServerStatus = 'starting' | 'connected' | 'disconnected' | 'reconnecting' | 'error';
 type CommandType = 'navigate' | 'click' | 'type' | 'wait' | 'screenshot' | null;
 type ErrorType = 'timeout' | 'injection_failed' | 'server_error' | null;
-type LlmStatus = 'idle' | 'downloading' | 'ready' | 'generating' | 'error';
+type LlmStatus = 'idle' | 'downloading' | 'initializing' | 'ready' | 'generating' | 'error';
 type EmailStatus = 'not_configured' | 'configured' | 'active';
 type MagicLinkStatus = 'idle' | 'detected' | 'checking_inbox' | 'found' | 'clicking';
+
+// Animation state for long-running initialization
+let llmInitAnimationInterval: ReturnType<typeof setInterval> | null = null;
+let llmInitAnimationFrame = 0;
+
+// Icon animation removed - using static icon from manifest
 
 interface BadgeState {
   serverStatus: ServerStatus;
@@ -93,12 +99,14 @@ let webAuthnProxy: WebAuthnProxy | null = null;
 // Offscreen document
 let offscreenReady = false;
 
+// Icon animation removed - using static icon from manifest only
+
 // ============================================================================
 // Badge Management
 // ============================================================================
 
 function updateBadge() {
-  // Priority: Error > Onboarding Needed > Email Identity > LLM Download > Active Command > Reconnecting > Server Status
+  // Priority: Error > Onboarding > Server Status (disconnected/error/reconnecting) > Magic Link > LLM > Active Command > Email Identity > Server Status (connected/starting)
 
   if (badgeState.errorType) {
     // Error state
@@ -119,7 +127,7 @@ function updateBadge() {
 
   // Onboarding needed badge (highest priority after errors)
   if (badgeState.emailStatus === 'not_configured') {
-    chrome.action.setBadgeText({ text: '👋' });
+    chrome.action.setBadgeText({ text: '⚠️' });
     chrome.action.setBadgeBackgroundColor({ color: '#ff6b35' }); // Orange
     const onboardingInfo = [
       '👋 SETUP REQUIRED',
@@ -133,6 +141,61 @@ function updateBadge() {
       'Setup takes ~2 minutes'
     ].join('\n');
     chrome.action.setTitle({ title: onboardingInfo });
+    return;
+  }
+
+  // Critical server status (disconnected, error, reconnecting) - must be visible!
+  if (badgeState.serverStatus === 'disconnected') {
+    chrome.action.setBadgeText({ text: '✗' });
+    chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    const disconnectedInfo = [
+      '✗ DISCONNECTED',
+      '',
+      'MCP Server: Not connected',
+      'WebSocket: Closed',
+      '',
+      'Action: Start the Rust server',
+      'Command: cargo run',
+      '',
+      'Extension will auto-reconnect when server starts'
+    ].join('\n');
+    chrome.action.setTitle({ title: disconnectedInfo });
+    return;
+  }
+
+  if (badgeState.serverStatus === 'error') {
+    chrome.action.setBadgeText({ text: '✗' });
+    chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
+    const serverErrorInfo = [
+      '✗ SERVER ERROR',
+      '',
+      `Error: ${badgeState.errorMessage || 'Unknown error'}`,
+      `Time: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Check if the Rust server is running',
+      'Try restarting the server',
+      '',
+      'See console for details'
+    ].join('\n');
+    chrome.action.setTitle({ title: serverErrorInfo });
+    return;
+  }
+
+  if (badgeState.serverStatus === 'reconnecting') {
+    chrome.action.setBadgeText({ text: `↻${badgeState.reconnectAttempt}` });
+    chrome.action.setBadgeBackgroundColor({ color: '#eab308' });
+    const reconnectInfo = [
+      `↻ RECONNECTING`,
+      '',
+      `Attempt: ${badgeState.reconnectAttempt} / ${MAX_RECONNECT_ATTEMPTS}`,
+      `Time: ${new Date().toLocaleTimeString()}`,
+      '',
+      'Status: Trying to reconnect to MCP server',
+      'Websocket connection lost',
+      '',
+      'Will retry automatically'
+    ].join('\n');
+    chrome.action.setTitle({ title: reconnectInfo });
     return;
   }
 
@@ -203,74 +266,112 @@ function updateBadge() {
     }
   }
 
-  // Email identity active badge (shows when email is configured)
-  if (badgeState.emailStatus === 'configured' && !badgeState.activeCommand && badgeState.llmStatus !== 'downloading' && badgeState.llmStatus !== 'generating') {
-    const emailShort = badgeState.emailAddress?.split('@')[0].substring(0, 3).toUpperCase() || 'ID';
-    chrome.action.setBadgeText({ text: '📧' });
-    chrome.action.setBadgeBackgroundColor({ color: '#00cc88' }); // Green
-    const emailInfo = [
-      '📧 EMAIL IDENTITY ACTIVE',
-      '',
-      `Email: ${badgeState.emailAddress || 'Unknown'}`,
-      `Provider: ${badgeState.emailProvider || 'Unknown'}`,
-      '',
-      'Magic link automation is enabled',
-      'Forms matching this email will auto-login',
-      '',
-      'Status: Monitoring for signup/signin forms'
-    ].join('\n');
-    chrome.action.setTitle({ title: emailInfo });
-    return;
-  }
-
-  // LLM download progress (5 stages: 0-20%, 20-40%, 40-60%, 60-80%, 80-100%)
+  // LLM download progress (text-based progress indicator - purple)
   if (badgeState.llmStatus === 'downloading') {
     const progress = badgeState.llmProgress;
-    let progressIcon = '';
     let progressText = '';
+    let progressStage = '';
 
-    if (progress < 0.2) {
-      progressIcon = '▱▱▱▱▱'; // 0-20%
-      progressText = `Downloading model: 0-20%`;
-    } else if (progress < 0.4) {
-      progressIcon = '▰▱▱▱▱'; // 20-40%
-      progressText = `Downloading model: 20-40%`;
-    } else if (progress < 0.6) {
-      progressIcon = '▰▰▱▱▱'; // 40-60%
-      progressText = `Downloading model: 40-60%`;
-    } else if (progress < 0.8) {
-      progressIcon = '▰▰▰▱▱'; // 60-80%
-      progressText = `Downloading model: 60-80%`;
+    // Use text-based progress bars (no icon swapping)
+    if (progress < 0.25) {
+      progressText = '▱▱▱';
+      progressStage = '0-25%';
+    } else if (progress < 0.50) {
+      progressText = '▰▱▱';
+      progressStage = '25-50%';
+    } else if (progress < 0.75) {
+      progressText = '▰▰▱';
+      progressStage = '50-75%';
     } else {
-      progressIcon = '▰▰▰▰▱'; // 80-100%
-      progressText = `Downloading model: 80-100%`;
+      progressText = '▰▰▰';
+      progressStage = '75-100%';
     }
 
     const mb = (badgeState.llmDownloadedBytes / (1024 * 1024)).toFixed(0);
     const totalMb = (badgeState.llmTotalBytes / (1024 * 1024)).toFixed(0);
     const percentComplete = (progress * 100).toFixed(1);
-    const remainingMb = totalMb - mb;
+    const remainingMb = Math.max(0, totalMb - mb);
 
-    chrome.action.setBadgeText({ text: progressIcon });
+    chrome.action.setBadgeText({ text: progressText });
     chrome.action.setBadgeBackgroundColor({ color: '#8b5cf6' }); // Purple
     const downloadInfo = [
-      `${progressIcon} DOWNLOADING LLM MODEL`,
+      `${progressText} DOWNLOADING LLM MODEL`,
       '',
       `Model: Gemma 3N-E2B IT`,
-      `Progress: ${percentComplete}% complete`,
+      `Progress: ${percentComplete}% complete (${progressStage})`,
       `Downloaded: ${mb} MB / ${totalMb} MB`,
       `Remaining: ${remainingMb} MB`,
       '',
       'Location: OPFS (Origin Private File System)',
-      'This is a one-time download'
+      'This is a one-time download',
+      '',
+      'Progress: ▱▱▱ → ▰▱▱ → ▰▰▱ → ▰▰▰'
     ].join('\n');
     chrome.action.setTitle({ title: downloadInfo });
     return;
   }
 
+  // LLM initialization progress (text-based progress indicator - yellow)
+  if (badgeState.llmStatus === 'initializing') {
+    const progress = badgeState.llmProgress;
+    let progressText = '';
+    let progressStage = '';
+
+    // Use text-based progress bars (no icon swapping)
+    if (progress < 0.33) {
+      progressText = '▱▱▱';
+      progressStage = '0-33%';
+    } else if (progress < 0.67) {
+      // Animate between ▰▱▱ and ▰▰▱ to show activity during long WASM compilation (33-67%)
+      progressText = llmInitAnimationFrame % 2 === 0 ? '▰▱▱' : '▰▰▱';
+      progressStage = '33-67% (compiling WASM)';
+
+      // Start animation if not already running
+      if (!llmInitAnimationInterval) {
+        llmInitAnimationInterval = setInterval(() => {
+          llmInitAnimationFrame++;
+          updateBadge();
+        }, 800); // Pulse every 800ms
+      }
+    } else if (progress < 0.9) {
+      progressText = '▰▰▱';
+      progressStage = '67-90%';
+    } else {
+      progressText = '▰▰▰';
+      progressStage = '90-100%';
+    }
+
+    const percentComplete = (progress * 100).toFixed(1);
+
+    chrome.action.setBadgeText({ text: progressText });
+    chrome.action.setBadgeBackgroundColor({ color: '#eab308' }); // Yellow
+    const initInfo = [
+      `${progressText} INITIALIZING LLM`,
+      '',
+      `Model: Gemma 3N-E2B IT`,
+      `Progress: ${percentComplete}% complete (${progressStage})`,
+      '',
+      'Status: Compiling WASM and loading model',
+      'Runtime: MediaPipe GenAI',
+      'Backend: WebGPU',
+      '',
+      'This may take 10-15 seconds (one-time setup)',
+      'Browser remains responsive during compilation'
+    ].join('\n');
+    chrome.action.setTitle({ title: initInfo });
+    return;
+  } else {
+    // Clear animation when leaving initializing state
+    if (llmInitAnimationInterval) {
+      clearInterval(llmInitAnimationInterval);
+      llmInitAnimationInterval = null;
+      llmInitAnimationFrame = 0;
+    }
+  }
+
   if (badgeState.llmStatus === 'ready') {
-    chrome.action.setBadgeText({ text: '🤖' });
-    chrome.action.setBadgeBackgroundColor({ color: '#8b5cf6' });
+    chrome.action.setBadgeText({ text: '✻' });
+    chrome.action.setBadgeBackgroundColor({ color: '#22c55e' }); // Green
     const llmInfo = [
       '🤖 LLM READY',
       '',
@@ -332,26 +433,26 @@ function updateBadge() {
     return;
   }
 
-  if (badgeState.serverStatus === 'reconnecting') {
-    // Reconnecting
-    chrome.action.setBadgeText({ text: `↻${badgeState.reconnectAttempt}` });
-    chrome.action.setBadgeBackgroundColor({ color: '#eab308' });
-    const reconnectInfo = [
-      `↻ RECONNECTING`,
+  // Email identity active badge (lower priority - shows when connected and no activity)
+  if (badgeState.emailStatus === 'configured' && badgeState.serverStatus === 'connected') {
+    chrome.action.setBadgeText({ text: '👤' });
+    chrome.action.setBadgeBackgroundColor({ color: '#00cc88' }); // Green
+    const emailInfo = [
+      '📧 EMAIL IDENTITY ACTIVE',
       '',
-      `Attempt: ${badgeState.reconnectAttempt} / ${MAX_RECONNECT_ATTEMPTS}`,
-      `Time: ${new Date().toLocaleTimeString()}`,
+      `Email: ${badgeState.emailAddress || 'Unknown'}`,
+      `Provider: ${badgeState.emailProvider || 'Unknown'}`,
       '',
-      'Status: Trying to reconnect to MCP server',
-      'Websocket connection lost',
+      'Magic link automation is enabled',
+      'Forms matching this email will auto-login',
       '',
-      'Will retry automatically'
+      'Status: Monitoring for signup/signin forms'
     ].join('\n');
-    chrome.action.setTitle({ title: reconnectInfo });
+    chrome.action.setTitle({ title: emailInfo });
     return;
   }
 
-  // Server status
+  // Non-critical server status (starting, connected)
   switch (badgeState.serverStatus) {
     case 'starting':
       chrome.action.setBadgeText({ text: '⋯' });
@@ -360,7 +461,7 @@ function updateBadge() {
         '⋯ SERVER STARTING',
         '',
         'Status: Initializing connection',
-        'Target: ws://localhost:3000',
+        'Target: ws://localhost:8085',
         '',
         'Please wait...'
       ].join('\n');
@@ -380,38 +481,11 @@ function updateBadge() {
       ].join('\n');
       chrome.action.setTitle({ title: connectedInfo });
       break;
-    case 'disconnected':
-      chrome.action.setBadgeText({ text: '✗' });
-      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-      const disconnectedInfo = [
-        '✗ DISCONNECTED',
-        '',
-        'MCP Server: Not connected',
-        'WebSocket: Closed',
-        '',
-        'Action: Start the Rust server',
-        'Command: cargo run',
-        '',
-        'Extension will auto-reconnect when server starts'
-      ].join('\n');
-      chrome.action.setTitle({ title: disconnectedInfo });
-      break;
-    case 'error':
-      chrome.action.setBadgeText({ text: '✗' });
-      chrome.action.setBadgeBackgroundColor({ color: '#ef4444' });
-      const serverErrorInfo = [
-        '✗ SERVER ERROR',
-        '',
-        `Error: ${badgeState.errorMessage || 'Unknown error'}`,
-        `Time: ${new Date().toLocaleTimeString()}`,
-        '',
-        'Check if the Rust server is running',
-        'Try restarting the server',
-        '',
-        'See console for details'
-      ].join('\n');
-      chrome.action.setTitle({ title: serverErrorInfo });
-      break;
+    default:
+      // Fallback for any unhandled states
+      chrome.action.setBadgeText({ text: '?' });
+      chrome.action.setBadgeBackgroundColor({ color: '#6b7280' });
+      chrome.action.setTitle({ title: 'Agent Browser - Unknown State' });
   }
 }
 
@@ -627,25 +701,44 @@ async function routeToTab(message: Message): Promise<Response> {
           throw new Error('Failed to create new tab');
         }
         tab = newTab;
-        // Wait for tab to load
-        await new Promise(resolve => setTimeout(resolve, 500));
+
+        // Wait for navigation to complete before injecting content script
+        await waitForTabReady(tab.id);
       } else {
         throw new Error('No valid tab found - current tab cannot run content scripts (chrome:// or extension pages)');
       }
     }
 
-    // Add tab to automation group if this is a navigation command
+    // Add tab to automation group if this is a navigation command (but don't fail on error)
     if (message.method === 'navigate') {
-      await addTabToAutomationGroup(tab.id!);
+      try {
+        await addTabToAutomationGroup(tab.id!);
+      } catch (err) {
+        // Tab groups might not be available in all window types - ignore error
+        console.log('[Background] Could not add to tab group (expected in some window types)');
+      }
+    }
+
+    // For navigate commands, ensure we wait for the page to load
+    if (message.method === 'navigate') {
+      await waitForTabReady(tab.id!);
     }
 
     // Check if content script is loaded
-    const isLoaded = await checkContentScript(tab.id);
+    let isLoaded = await checkContentScript(tab.id);
 
     if (!isLoaded) {
       console.log('[Background] Content script not loaded, injecting...');
       try {
         await injectContentScript(tab.id);
+        // Wait a bit longer for script to initialize
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        // Verify it loaded
+        isLoaded = await checkContentScript(tab.id);
+        if (!isLoaded) {
+          throw new Error('Content script injected but not responding');
+        }
       } catch (injectError) {
         setBadgeState({
           errorType: 'injection_failed',
@@ -699,6 +792,38 @@ async function routeToTab(message: Message): Promise<Response> {
       error: error.message || 'Unknown error',
     };
   }
+}
+
+async function waitForTabReady(tabId: number): Promise<void> {
+  return new Promise((resolve) => {
+    const listener = (
+      updatedTabId: number,
+      changeInfo: chrome.tabs.TabChangeInfo,
+      tab: chrome.tabs.Tab
+    ) => {
+      if (updatedTabId === tabId && changeInfo.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        // Add small delay to ensure DOM is ready
+        setTimeout(resolve, 100);
+      }
+    };
+
+    chrome.tabs.onUpdated.addListener(listener);
+
+    // Timeout after 30 seconds
+    setTimeout(() => {
+      chrome.tabs.onUpdated.removeListener(listener);
+      resolve();
+    }, 30000);
+
+    // Check if already complete
+    chrome.tabs.get(tabId).then(tab => {
+      if (tab.status === 'complete') {
+        chrome.tabs.onUpdated.removeListener(listener);
+        setTimeout(resolve, 100);
+      }
+    });
+  });
 }
 
 async function checkContentScript(tabId: number): Promise<boolean> {
@@ -982,19 +1107,23 @@ async function initializeLlm() {
 }
 
 // Handle messages from offscreen document and content scripts
-chrome.runtime.onMessage.addListener((message, sender) => {
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle messages from offscreen document
   if (sender.url === chrome.runtime.getURL('offscreen.html')) {
     console.log('[Background] Message from offscreen:', message.type);
 
     switch (message.type) {
       case 'llm_progress':
+        console.log('[Background] LLM progress:', message.stage, message.progress, message.downloadedBytes, message.totalBytes);
         setBadgeState({
-          llmStatus: 'downloading',
+          llmStatus: message.stage === 'initializing' ? 'initializing' : 'downloading',
           llmProgress: message.progress || 0,
           llmDownloadedBytes: message.downloadedBytes || 0,
           llmTotalBytes: message.totalBytes || 0,
         });
+        updateBadge(); // Force badge update
+        // Forward to popup
+        chrome.runtime.sendMessage(message).catch(() => {});
         break;
 
       case 'llm_ready':
@@ -1004,11 +1133,24 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           llmProgress: 1,
         });
         console.log('[Background] LLM is ready');
+        // Forward to popup
+        chrome.runtime.sendMessage(message).catch(() => {});
         break;
 
       case 'llm_chunk':
         // Forward to MCP server via WebSocket if needed
         console.log('[Background] LLM chunk:', message.text?.substring(0, 50));
+        break;
+
+      case 'llm_response_chunk':
+        // Forward to popup (broadcast to all extension contexts)
+        chrome.runtime.sendMessage(message).catch(() => {});
+        break;
+
+      case 'llm_response_complete':
+        setBadgeState({ llmStatus: 'ready' });
+        // Forward to popup
+        chrome.runtime.sendMessage(message).catch(() => {});
         break;
 
       case 'llm_complete':
@@ -1023,9 +1165,71 @@ chrome.runtime.onMessage.addListener((message, sender) => {
           errorMessage: message.error || 'LLM error',
         });
         console.error('[Background] LLM error:', message.error);
+        // Forward to popup
+        chrome.runtime.sendMessage(message).catch(() => {});
+        break;
+
+      case 'worker_test_result':
+        console.log('🔬 [Background] Worker Test Result:', message.available ? '✅ AVAILABLE' : '❌ NOT AVAILABLE');
+        console.log('🔬 [Background] Details:', message.details);
         break;
     }
     return;
+  }
+
+  // Handle test LLM request from popup
+  if (message.type === 'test_llm') {
+    console.log('[Background] Test LLM request:', message.prompt);
+
+    // Check if LLM is ready, if not initialize it first
+    if (badgeState.llmStatus === 'idle' || badgeState.llmStatus === 'error') {
+      console.log('[Background] LLM not initialized - starting initialization');
+      setBadgeState({ llmStatus: 'downloading' });
+
+      // Initialize LLM first
+      initializeLlm().then(() => {
+        console.log('[Background] LLM initialized, now sending prompt');
+        // Wait a bit for ready message
+        setTimeout(() => {
+          chrome.runtime.sendMessage({ type: 'generate', prompt: message.prompt }).catch(err => {
+            console.error('[Background] Failed to send to offscreen:', err);
+          });
+        }, 1000);
+      }).catch(err => {
+        console.error('[Background] LLM initialization failed:', err);
+      });
+    } else if (badgeState.llmStatus === 'ready') {
+      // LLM already ready, send immediately
+      setBadgeState({ llmStatus: 'generating' });
+      chrome.runtime.sendMessage({ type: 'generate', prompt: message.prompt }).catch(err => {
+        console.error('[Background] Failed to send to offscreen:', err);
+      });
+    } else {
+      // LLM is still loading/downloading
+      console.log('[Background] LLM still loading, queuing prompt...');
+      // Queue the prompt to send after ready
+      const readyListener = (msg: any) => {
+        if (msg.type === 'llm_ready') {
+          chrome.runtime.onMessage.removeListener(readyListener);
+          chrome.runtime.sendMessage({ type: 'generate', prompt: message.prompt }).catch(err => {
+            console.error('[Background] Failed to send to offscreen:', err);
+          });
+        }
+      };
+      chrome.runtime.onMessage.addListener(readyListener);
+    }
+    return;
+  }
+
+  // Handle check LLM status from popup - don't auto-load to avoid freeze
+  if (message.type === 'check_llm_status') {
+    // Don't auto-initialize - let user trigger it manually to avoid browser freeze
+    sendResponse({
+      ready: offscreenReady,
+      status: badgeState.llmStatus,
+      progress: badgeState.llmProgress
+    });
+    return true; // Keep channel open for async response
   }
 
   // Handle messages from content scripts
@@ -1153,8 +1357,13 @@ async function initializeWebAuthnProxy() {
 
 initializeWebAuthnProxy();
 
-// Initialize LLM in offscreen
-initializeLlm();
+// Create offscreen document for Worker test (but don't init LLM to avoid freeze)
+setupOffscreenDocument().catch(err => {
+  console.error('[Background] Failed to create offscreen document:', err);
+});
+
+// Don't initialize LLM at startup - lazy load on first use to prevent browser freeze
+// initializeLlm();
 
 // Ensure server is running, then connect
 ensureServerRunning();
@@ -1182,7 +1391,7 @@ chrome.action.onClicked.addListener(async () => {
 
 // Handle tab updates (re-inject if needed)
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://')) {
+  if (changeInfo.status === 'complete' && tab.url && !tab.url.startsWith('chrome://') && !tab.url.startsWith('chrome-extension://')) {
     // Proactively inject content script on page load
     const isLoaded = await checkContentScript(tabId);
     if (!isLoaded) {

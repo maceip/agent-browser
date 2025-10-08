@@ -1,10 +1,10 @@
 /*!
  * Agent Browser Server
  *
- * THREE INTERFACES (all run simultaneously):
- * 1. MCP TCP on localhost:8084 - MCP client connects here
- * 2. MCP stdio (optional) - Read from stdin, write to stdout
- * 3. WebSocket on localhost:8085 - Extension connects here
+ * Runs three servers simultaneously:
+ * - MCP stdio - Read from stdin, write to stdout (for Claude Code integration)
+ * - MCP TCP on localhost:8084 - MCP clients can connect here
+ * - WebSocket on localhost:8085 - Extension connects here
  *
  * Flow: MCP client → server → extension via WebSocket → response back
  */
@@ -696,20 +696,32 @@ async fn handle_websocket_connection(
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    // Only enable logging if RUST_LOG is explicitly set
+    // Otherwise, completely disable stderr output to avoid interfering with MCP stdio
+    // Errors will be sent to extension via WebSocket or returned in MCP error responses
+    if env::var("RUST_LOG").is_ok() {
+        tracing_subscriber::fmt()
+            .with_max_level(tracing::Level::INFO)
+            .with_target(false)
+            .with_thread_ids(false)
+            .with_thread_names(false)
+            .with_file(false)
+            .with_line_number(false)
+            .init();
 
-    info!("Agent Browser Server starting...");
+        info!("Agent Browser Server starting...");
+    } else {
+        // Initialize with a no-op subscriber to satisfy tracing macros
+        // This prevents panics from info!/warn!/error! macros but produces no output
+        use tracing_subscriber::prelude::*;
+        tracing_subscriber::registry()
+            .with(tracing_subscriber::filter::LevelFilter::OFF)
+            .init();
+    }
 
     let state = Arc::new(ServerState::new().await);
 
-    // Check environment variables for which interfaces to enable
-    let mcp_tcp_enabled = env::var("MCP_TCP").is_ok();
-    let mcp_stdio_enabled = env::var("MCP_STDIO").is_ok();
-
-    // Always start WebSocket server (for extension)
+    // Start WebSocket server (for extension)
     let ws_state = Arc::clone(&state);
     let ws_task = tokio::spawn(async move {
         if let Err(e) = run_websocket_server(ws_state).await {
@@ -717,62 +729,31 @@ async fn main() -> Result<()> {
         }
     });
 
-    // Optionally start MCP TCP server
-    let tcp_task = if mcp_tcp_enabled {
-        info!("MCP_TCP=1 detected, starting MCP TCP server");
-        let tcp_state = Arc::clone(&state);
-        Some(tokio::spawn(async move {
-            if let Err(e) = run_mcp_tcp(tcp_state).await {
-                error!("MCP TCP server error: {}", e);
-            }
-        }))
-    } else {
-        None
-    };
-
-    // Optionally start MCP stdio server
-    let stdio_task = if mcp_stdio_enabled {
-        info!("MCP_STDIO=1 detected, starting MCP stdio server");
-        let stdio_state = Arc::clone(&state);
-        Some(tokio::spawn(async move {
-            if let Err(e) = run_mcp_stdio(stdio_state).await {
-                error!("MCP stdio server error: {}", e);
-            }
-        }))
-    } else {
-        None
-    };
-
-    info!("Server initialized successfully");
-    info!("  - WebSocket: ws://127.0.0.1:8085 (extension)");
-    if mcp_tcp_enabled {
-        info!("  - MCP TCP: 127.0.0.1:8084");
-    }
-    if mcp_stdio_enabled {
-        info!("  - MCP stdio: enabled");
-    }
-
-    // Wait for tasks
-    if let Some(t) = tcp_task {
-        if let Some(s) = stdio_task {
-            tokio::select! {
-                _ = ws_task => {},
-                _ = t => {},
-                _ = s => {},
-            }
-        } else {
-            tokio::select! {
-                _ = ws_task => {},
-                _ = t => {},
-            }
+    // Start MCP TCP server
+    let tcp_state = Arc::clone(&state);
+    let tcp_task = tokio::spawn(async move {
+        if let Err(e) = run_mcp_tcp(tcp_state).await {
+            error!("MCP TCP server error: {}", e);
         }
-    } else if let Some(s) = stdio_task {
-        tokio::select! {
-            _ = ws_task => {},
-            _ = s => {},
+    });
+
+    // Start MCP stdio server
+    let stdio_state = Arc::clone(&state);
+    let _stdio_task = tokio::spawn(async move {
+        if let Err(e) = run_mcp_stdio(stdio_state).await {
+            error!("MCP stdio server error: {}", e);
         }
-    } else {
-        ws_task.await.ok();
+    });
+
+    // Wait for WebSocket or TCP tasks to complete (stdio can exit normally)
+    // Run all three servers concurrently - stdio is fire-and-forget
+    tokio::select! {
+        _ = ws_task => {
+            error!("WebSocket server exited unexpectedly");
+        },
+        _ = tcp_task => {
+            error!("TCP server exited unexpectedly");
+        },
     }
 
     Ok(())

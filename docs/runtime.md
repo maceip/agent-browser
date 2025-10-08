@@ -4,18 +4,17 @@ Use this guide while operating Agent Browser in development or production-like e
 
 ## Ports & transports
 
+- stdio — MCP server (default mode for Claude integration)
 - `8084/tcp` — MCP server (enable by setting `MCP_TCP=1` before launching the Rust binary)
-- stdio — MCP server when invoked by Claude with `--env MCP_STDIO=1`
 - `8085/tcp` — WebSocket bridge consumed by the Chrome extension
 
-The native messaging host starts the Rust server with `MCP_TCP=1`, so the TCP endpoint is usually available once the extension badge turns green.
+The server defaults to stdio mode when launched by Claude. For development/debugging with direct TCP connections, set `MCP_TCP=1`.
 
 ## Environment variables
 
-- `MCP_TCP=1` — listen for MCP requests on TCP `localhost:8084`
-- `MCP_STDIO=1` — serve MCP over stdio (used by Claude CLI integration)
+- `MCP_TCP=1` — listen for MCP requests on TCP `localhost:8084` instead of stdio (used for development/debugging)
 
-Set these before executing `/usr/local/bin/agent-browser-server` when launching it manually. Both variables can be supplied simultaneously if you need stdio and TCP at once.
+Set this before executing `/usr/local/bin/agent-browser-server` when you need TCP mode for testing or development.
 
 ## Binaries & processes
 

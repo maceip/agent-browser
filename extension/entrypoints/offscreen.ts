@@ -1,135 +1,144 @@
 /**
  * Offscreen Document - LLM Inference Service
  *
- * Runs MediaPipe LLM inference in an isolated context
- * - Downloads and caches Gemma model (3.8GB)
- * - Handles streaming inference
+ * Runs MediaPipe LLM inference in a Web Worker to prevent browser freeze
+ * - Worker handles WASM compilation in separate thread
+ * - OPFS caching for model persistence
+ * - Streaming inference
  * - Communicates with background via chrome.runtime messaging
  */
-
-import { FilesetResolver, LlmInference } from '@mediapipe/tasks-genai';
 
 // ============================================================================
 // Types
 // ============================================================================
 
 interface LlmMessage {
-  type: 'llm_init' | 'llm_query' | 'llm_stop';
+  type: 'llm_init' | 'llm_query' | 'llm_stop' | 'generate';
   id?: string;
   prompt?: string;
   modelUrl?: string;
 }
 
 interface LlmResponse {
-  type: 'llm_ready' | 'llm_chunk' | 'llm_complete' | 'llm_error' | 'llm_progress';
+  type: 'llm_ready' | 'llm_chunk' | 'llm_complete' | 'llm_error' | 'llm_progress' | 'llm_response_chunk' | 'llm_response_complete';
   id?: string;
   text?: string;
   error?: string;
   progress?: number;
   downloadedBytes?: number;
   totalBytes?: number;
+  stage?: 'downloading' | 'initializing';
 }
 
 // ============================================================================
 // State
 // ============================================================================
 
-let llmInference: LlmInference | null = null;
-let isInitializing = false;
-
 const DEFAULT_MODEL_URL = 'https://storage.googleapis.com/ktex-static/gemma-3n-E2B-it-int4-Web.litertlm';
 
+let worker: Worker | null = null;
+let isInitialized = false;
+
 // ============================================================================
-// Model Loading with Progress Tracking
+// Worker Setup
+// ============================================================================
+
+function setupWorker(): void {
+  if (worker) {
+    console.log('[Offscreen] Worker already exists');
+    return;
+  }
+
+  console.log('[Offscreen] Creating LLM Worker...');
+  worker = new Worker('/llm-worker.js');
+
+  worker.onmessage = (event) => {
+    const message = event.data;
+    console.log('[Offscreen] Worker message:', message.type);
+
+    switch (message.type) {
+      case 'ready':
+        console.log('[Offscreen] ✅ Worker ready');
+        if (message.message !== 'Worker is operational') {
+          // Initial ready message, LLM is initialized
+          isInitialized = true;
+          sendToBackground({ type: 'llm_ready' });
+        }
+        break;
+
+      case 'progress':
+        sendToBackground({
+          type: 'llm_progress',
+          progress: message.progress || 0,
+          downloadedBytes: message.downloadedBytes || 0,
+          totalBytes: message.totalBytes || 0,
+          stage: message.stage || 'downloading',
+        });
+        break;
+
+      case 'chunk':
+        // Forward streaming chunks to background
+        chrome.runtime.sendMessage({
+          type: 'llm_response_chunk',
+          text: message.text,
+        }).catch(() => {});
+
+        if (message.done) {
+          chrome.runtime.sendMessage({
+            type: 'llm_response_complete',
+          }).catch(() => {});
+        }
+        break;
+
+      case 'error':
+        console.error('[Offscreen] Worker error:', message.error);
+        sendToBackground({
+          type: 'llm_error',
+          error: message.error,
+        });
+        break;
+    }
+  };
+
+  worker.onerror = (error) => {
+    console.error('[Offscreen] Worker error event:', error);
+    sendToBackground({
+      type: 'llm_error',
+      error: 'Worker crashed: ' + error.message,
+    });
+  };
+
+  console.log('[Offscreen] Worker created successfully');
+}
+
+// ============================================================================
+// Initialization
 // ============================================================================
 
 async function initializeLlm(modelUrl: string = DEFAULT_MODEL_URL): Promise<void> {
-  if (llmInference) {
-    console.log('[Offscreen] LLM already initialized');
-    sendToBackground({ type: 'llm_ready' });
-    return;
-  }
-
-  if (isInitializing) {
-    console.log('[Offscreen] LLM already initializing');
-    return;
-  }
-
-  isInitializing = true;
-  console.log('[Offscreen] Initializing LLM with model:', modelUrl);
-
   try {
-    // Resolve GenAI fileset - using CDN for WASM files
-    const genaiFileset = await FilesetResolver.forGenAiTasks(
-      'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-genai@0.10.25/wasm'
-    );
+    setupWorker();
 
-    // Fetch model with progress tracking
-    console.log('[Offscreen] Fetching model...');
-    const response = await fetch(modelUrl);
-
-    if (!response.ok) {
-      throw new Error(`Failed to fetch model: ${response.statusText}`);
+    if (isInitialized) {
+      console.log('[Offscreen] LLM already initialized');
+      sendToBackground({ type: 'llm_ready' });
+      return;
     }
 
-    const contentLength = parseInt(response.headers.get('Content-Length') || '0');
-    const reader = response.body?.getReader();
+    console.log('[Offscreen] Initializing LLM in Worker with model:', modelUrl);
 
-    if (!reader) {
-      throw new Error('Response body is not readable');
-    }
-
-    let downloadedBytes = 0;
-    const chunks: Uint8Array[] = [];
-
-    // Read stream with progress updates
-    while (true) {
-      const { done, value } = await reader.read();
-
-      if (done) break;
-
-      chunks.push(value);
-      downloadedBytes += value.length;
-
-      const progress = contentLength > 0 ? downloadedBytes / contentLength : 0;
-
-      // Send progress updates
-      sendToBackground({
-        type: 'llm_progress',
-        progress,
-        downloadedBytes,
-        totalBytes: contentLength,
-      });
-    }
-
-    // Combine chunks into single buffer
-    const totalLength = chunks.reduce((acc, chunk) => acc + chunk.length, 0);
-    const modelBuffer = new Uint8Array(totalLength);
-    let offset = 0;
-    for (const chunk of chunks) {
-      modelBuffer.set(chunk, offset);
-      offset += chunk.length;
-    }
-
-    console.log('[Offscreen] Model downloaded, creating LLM instance...');
-
-    // Create LLM inference instance
-    llmInference = await LlmInference.createFromOptions(genaiFileset, {
-      baseOptions: {
-        modelAssetBuffer: new ReadableStream({
-          start(controller) {
-            controller.enqueue(modelBuffer);
-            controller.close();
-          }
-        }).getReader(),
-      },
-      maxTokens: 1024,
-      topK: 40,
-      temperature: 0.8,
+    // Send init command to Worker
+    worker!.postMessage({
+      type: 'init',
+      data: {
+        modelUrl,
+        maxTokens: 1024,
+        topK: 40,
+        temperature: 0.8,
+      }
     });
 
-    console.log('[Offscreen] LLM initialized successfully');
-    sendToBackground({ type: 'llm_ready' });
+    // Worker will send 'ready' message when initialization complete
 
   } catch (error) {
     console.error('[Offscreen] Failed to initialize LLM:', error);
@@ -137,8 +146,6 @@ async function initializeLlm(modelUrl: string = DEFAULT_MODEL_URL): Promise<void
       type: 'llm_error',
       error: error instanceof Error ? error.message : 'Unknown error',
     });
-  } finally {
-    isInitializing = false;
   }
 }
 
@@ -146,41 +153,33 @@ async function initializeLlm(modelUrl: string = DEFAULT_MODEL_URL): Promise<void
 // Inference
 // ============================================================================
 
-async function generateResponse(id: string, prompt: string): Promise<void> {
-  if (!llmInference) {
+async function generateResponse(prompt: string): Promise<void> {
+  if (!worker) {
     sendToBackground({
       type: 'llm_error',
-      id,
+      error: 'Worker not initialized',
+    });
+    return;
+  }
+
+  if (!isInitialized) {
+    sendToBackground({
+      type: 'llm_error',
       error: 'LLM not initialized',
     });
     return;
   }
 
-  console.log('[Offscreen] Generating response for:', prompt.substring(0, 50) + '...');
+  console.log('[Offscreen] Sending generation request to Worker:', prompt.substring(0, 50) + '...');
 
-  try {
-    llmInference.generateResponse(prompt, (partialResult: string, done: boolean) => {
-      sendToBackground({
-        type: 'llm_chunk',
-        id,
-        text: partialResult,
-      });
-
-      if (done) {
-        sendToBackground({
-          type: 'llm_complete',
-          id,
-        });
-      }
-    });
-  } catch (error) {
-    console.error('[Offscreen] Generation error:', error);
-    sendToBackground({
-      type: 'llm_error',
-      id,
-      error: error instanceof Error ? error.message : 'Generation failed',
-    });
-  }
+  // Send generate command to Worker
+  // Worker will stream back chunks via onmessage handler
+  worker.postMessage({
+    type: 'generate',
+    data: {
+      prompt
+    }
+  });
 }
 
 // ============================================================================
@@ -205,12 +204,14 @@ chrome.runtime.onMessage.addListener((message: LlmMessage, sender, sendResponse)
       });
       return true; // Async response
 
-    case 'llm_query':
-      if (!message.id || !message.prompt) {
-        sendResponse({ success: false, error: 'Missing id or prompt' });
+    case 'generate':
+      // Generate request from popup or background
+      if (!message.prompt) {
+        sendResponse({ success: false, error: 'Missing prompt' });
         return false;
       }
-      generateResponse(message.id, message.prompt).then(() => {
+
+      generateResponse(message.prompt).then(() => {
         sendResponse({ success: true });
       }).catch((error) => {
         sendResponse({ success: false, error: error.message });
@@ -220,7 +221,6 @@ chrome.runtime.onMessage.addListener((message: LlmMessage, sender, sendResponse)
     case 'llm_stop':
       // LLM stop functionality
       // MediaPipe LLM Inference API does not currently support interrupting generation
-      // Would require streaming API changes to support cancellation tokens
       sendResponse({ success: false, error: 'Stop not supported by MediaPipe LLM API' });
       return false;
 
@@ -231,7 +231,68 @@ chrome.runtime.onMessage.addListener((message: LlmMessage, sender, sendResponse)
 });
 
 // ============================================================================
+// Web Worker Test
+// ============================================================================
+
+async function testWorker(): Promise<void> {
+  console.log('[Offscreen] Testing Web Worker approach...');
+
+  try {
+    const worker = new Worker('/llm-worker.js');
+
+    worker.onmessage = (event) => {
+      console.log('[Offscreen] Worker message:', event.data);
+
+      if (event.data.type === 'ready') {
+        console.log('[Offscreen] ✅ Worker is ready, testing MediaPipe availability...');
+        worker.postMessage({ type: 'check_mediapipe' });
+      }
+
+      if (event.data.type === 'mediapipe_check') {
+        console.log('[Offscreen] MediaPipe availability:', event.data);
+
+        // Send to background so it shows in service worker console
+        chrome.runtime.sendMessage({
+          type: 'worker_test_result',
+          available: event.data.available,
+          details: event.data
+        });
+
+        if (event.data.available) {
+          console.log('[Offscreen] ✅ MediaPipe is available in Worker! We can proceed.');
+        } else {
+          console.error('[Offscreen] ❌ MediaPipe NOT available in Worker:', event.data.details);
+        }
+      }
+
+      if (event.data.type === 'error') {
+        console.error('[Offscreen] ❌ Worker error:', event.data.error);
+      }
+    };
+
+    worker.onerror = (error) => {
+      console.error('[Offscreen] ❌ Worker error event:', error);
+    };
+
+  } catch (error) {
+    console.error('[Offscreen] ❌ Failed to create Worker:', error);
+  }
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
-console.log('[Offscreen] LLM service loaded');
+console.log('[Offscreen] LLM service loaded (Worker-based)');
+
+// Test Worker approach on first load (disabled - already confirmed working)
+// testWorker();
+
+// Setup the real Worker for LLM operations
+setupWorker();
+
+// Auto-initialize LLM on load (Worker prevents browser freeze)
+console.log('[Offscreen] Auto-initializing LLM...');
+initializeLlm().catch(err => {
+  console.error('[Offscreen] Auto-init failed:', err);
+});

@@ -6,6 +6,7 @@
  */
 
 import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthenticationOptions, verifyAuthenticationResponse } from '@simplewebauthn/server';
+import { isoBase64URL } from '@simplewebauthn/server/helpers';
 import type {
   GenerateRegistrationOptionsOpts,
   GenerateAuthenticationOptionsOpts,
@@ -85,10 +86,13 @@ const server = Bun.serve({
           users.set(user.id, user);
         }
 
+        // Convert user.id string to Uint8Array for SimpleWebAuthn v11+
+        const userIdBuffer = new TextEncoder().encode(user.id);
+
         const options = await generateRegistrationOptions({
           rpName,
           rpID,
-          userID: user.id,
+          userID: userIdBuffer,
           userName: username,
           userDisplayName: email,
           attestationType: 'none',
@@ -96,11 +100,12 @@ const server = Bun.serve({
             residentKey: 'preferred',
             userVerification: 'preferred',
           },
-          excludeCredentials: user.credentials.map(cred => ({
-            id: cred.credentialID,
-            type: 'public-key',
-            transports: cred.transports,
-          })),
+          excludeCredentials: user.credentials
+            .filter(cred => cred.credentialID) // Filter out invalid credentials
+            .map(cred => ({
+              id: isoBase64URL.fromBuffer(cred.credentialID),
+              transports: cred.transports,
+            })),
         });
 
         // Store challenge for verification
@@ -138,17 +143,30 @@ const server = Bun.serve({
         });
 
         if (verification.verified && verification.registrationInfo) {
-          const {
-            credentialID,
-            credentialPublicKey,
-            counter,
-          } = verification.registrationInfo;
+          const { credential } = verification.registrationInfo;
+
+          if (!credential || !credential.id) {
+            console.error('[ERROR] No credential found in registrationInfo');
+            return Response.json({ verified: false, error: 'Missing credential' }, { headers });
+          }
+
+          // In SimpleWebAuthn v11+:
+          // - credential.id is a base64url STRING
+          // - credential.publicKey is a Uint8Array
+          // - credential.counter is a number
+          // - credential.transports is an array of strings
+
+          // Convert credential.id (base64url string) back to Uint8Array for storage
+          const credentialIDBytes = Uint8Array.from(
+            atob(credential.id.replace(/-/g, '+').replace(/_/g, '/')),
+            c => c.charCodeAt(0)
+          );
 
           const newAuthenticator: Authenticator = {
-            credentialID,
-            credentialPublicKey,
-            counter,
-            transports: attResp.response.transports,
+            credentialID: credentialIDBytes,
+            credentialPublicKey: credential.publicKey,
+            counter: credential.counter,
+            transports: credential.transports,
           };
 
           user.credentials.push(newAuthenticator);
@@ -157,13 +175,13 @@ const server = Bun.serve({
           challenges.delete(sessionId);
 
           console.log(`✓ Registered credential for ${username}:`, {
-            credentialID: Buffer.from(credentialID).toString('base64'),
+            credentialID: credential.id,
           });
 
           return Response.json({
             verified: true,
             userId: user.id,
-            credentialId: Buffer.from(credentialID).toString('base64'),
+            credentialId: credential.id,
           }, { headers });
         }
 
@@ -187,11 +205,12 @@ const server = Bun.serve({
 
         const options = await generateAuthenticationOptions({
           rpID,
-          allowCredentials: user.credentials.map(cred => ({
-            id: cred.credentialID,
-            type: 'public-key',
-            transports: cred.transports,
-          })),
+          allowCredentials: user.credentials
+            .filter(cred => cred.credentialID) // Filter out invalid credentials
+            .map(cred => ({
+              id: isoBase64URL.fromBuffer(cred.credentialID),
+              transports: cred.transports,
+            })),
           userVerification: 'preferred',
         });
 
@@ -222,13 +241,25 @@ const server = Bun.serve({
           return Response.json({ error: 'User not found' }, { status: 400, headers });
         }
 
-        // Find the authenticator
-        const credentialID = authResp.rawId;
-        const authenticator = user.credentials.find(cred =>
-          Buffer.from(cred.credentialID).equals(Buffer.from(credentialID, 'base64'))
+        // Find the authenticator - authResp.rawId is a base64url string in v11
+        const rawIdBase64url = authResp.rawId;
+
+        // Convert base64url string to Uint8Array for comparison
+        const rawIdBytes = Uint8Array.from(
+          atob(rawIdBase64url.replace(/-/g, '+').replace(/_/g, '/')),
+          c => c.charCodeAt(0)
         );
 
+        const authenticator = user.credentials.find(cred => {
+          if (cred.credentialID.length !== rawIdBytes.length) return false;
+          for (let i = 0; i < cred.credentialID.length; i++) {
+            if (cred.credentialID[i] !== rawIdBytes[i]) return false;
+          }
+          return true;
+        });
+
         if (!authenticator) {
+          console.error('[ERROR] Authenticator not found for rawId:', rawIdBase64url);
           return Response.json({ error: 'Authenticator not found' }, { status: 400, headers });
         }
 
@@ -237,10 +268,11 @@ const server = Bun.serve({
           expectedChallenge,
           expectedOrigin: origin,
           expectedRPID: rpID,
-          authenticator: {
-            credentialID: authenticator.credentialID,
-            credentialPublicKey: authenticator.credentialPublicKey,
+          credential: {
+            id: isoBase64URL.fromBuffer(authenticator.credentialID),
+            publicKey: authenticator.credentialPublicKey,
             counter: authenticator.counter,
+            transports: authenticator.transports,
           },
         });
 
@@ -275,6 +307,14 @@ const server = Bun.serve({
         credentialCount: u.credentials.length,
       }));
       return Response.json(userList, { headers });
+    }
+
+    // Clear all users (for debugging)
+    if (path === '/users' && req.method === 'DELETE') {
+      users.clear();
+      challenges.clear();
+      console.log('🗑️  Cleared all users and challenges');
+      return Response.json({ success: true, message: 'All users cleared' }, { headers });
     }
 
     return new Response('Not Found', { status: 404, headers });

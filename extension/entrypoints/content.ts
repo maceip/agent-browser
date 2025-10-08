@@ -16,6 +16,7 @@ import { dismissModal } from '../lib/automation/modal-dismiss';
 import type { Command, CommandAction } from '../lib/automation/types';
 import { getMagicLinkDetector } from '../lib/automation/magic-link-detector';
 import type { MagicLinkDetection } from '../lib/automation/magic-link-detector';
+import { initAutoModalHandler } from '../lib/automation/auto-modal-handler';
 
 // ============================================================================
 // Message Handler
@@ -265,8 +266,44 @@ magicLinkDetector.onDetection(async (detection: MagicLinkDetection) => {
 magicLinkDetector.startMonitoring();
 
 // ============================================================================
+// Auto Modal Handler
+// ============================================================================
+
+// Initialize automatic modal dismissal (GDPR/cookie banners)
+try {
+  console.log('[Content] Initializing auto-modal handler...');
+  const modeConfig = getModeConfig('auto');
+  const autoModalHandler = initAutoModalHandler(modeConfig, {
+    enabled: true,
+    checkInterval: 1000,
+    maxChecksPerPage: 10,
+    onlyFirstVisit: true, // Only dismiss GDPR/cookie modals on first visit
+    modalTypes: ['cookie-consent', 'gdpr'],
+    delayBeforeDismiss: 500,
+    delayAfterDismiss: 1000,
+    onModalDetected: (modalType) => {
+      console.log(`[Content] 🎯 Auto-modal detected: ${modalType}`);
+    },
+    onModalDismissed: (result) => {
+      if (result.success) {
+        console.log(`[Content] ✅ Auto-modal dismissed using ${result.strategy} strategy`);
+      } else {
+        console.warn(`[Content] ❌ Auto-modal dismiss failed: ${result.error}`);
+      }
+    },
+    onError: (error) => {
+      console.error('[Content] Auto-modal error:', error);
+    },
+  });
+  console.log('[Content] ✓ Auto-modal handler initialized successfully');
+} catch (error) {
+  console.error('[Content] Failed to initialize auto-modal handler:', error);
+}
+
+// ============================================================================
 // Initialization
 // ============================================================================
 
 console.log('[Content] Script loaded:', window.location.href);
 console.log('[Content] Magic link detection active');
+console.log('[Content] Auto-modal handler enabled');

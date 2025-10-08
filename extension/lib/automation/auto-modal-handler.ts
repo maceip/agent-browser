@@ -170,21 +170,39 @@ export class AutoModalHandler {
    */
   private startMutationObserver(): void {
     this.observer = new MutationObserver((mutations) => {
-      // Check if any mutations added elements with high z-index or modal-like attributes
+      // Check if any mutations indicate a modal appeared
       const hasModalMutation = mutations.some(mutation => {
-        return Array.from(mutation.addedNodes).some(node => {
-          if (node.nodeType === Node.ELEMENT_NODE) {
-            const element = node as HTMLElement;
+        // Check for new DOM nodes (childList mutations)
+        if (mutation.type === 'childList') {
+          return Array.from(mutation.addedNodes).some(node => {
+            if (node.nodeType === Node.ELEMENT_NODE) {
+              const element = node as HTMLElement;
 
-            // Check for modal indicators
-            const hasModalRole = element.getAttribute('role') === 'dialog' ||
-                                element.getAttribute('aria-modal') === 'true';
-            const hasModalClass = /modal|dialog|popup|overlay/i.test(element.className);
+              // Check for modal indicators
+              const hasModalRole = element.getAttribute('role') === 'dialog' ||
+                                  element.getAttribute('aria-modal') === 'true';
+              const hasModalClass = /modal|dialog|popup|overlay|banner|gdpr|cookie/i.test(element.className);
 
-            return hasModalRole || hasModalClass;
-          }
-          return false;
-        });
+              return hasModalRole || hasModalClass;
+            }
+            return false;
+          });
+        }
+
+        // Check for attribute changes (class/style mutations)
+        if (mutation.type === 'attributes' && mutation.target instanceof HTMLElement) {
+          const element = mutation.target;
+
+          // Check if element is now visible with modal-like characteristics
+          const hasModalRole = element.getAttribute('role') === 'dialog' ||
+                              element.getAttribute('aria-modal') === 'true';
+          const hasModalClass = /modal|dialog|popup|overlay|banner|gdpr|cookie/i.test(element.className);
+          const hasModalId = /modal|dialog|popup|banner|gdpr|cookie/i.test(element.id);
+
+          return hasModalRole || hasModalClass || hasModalId;
+        }
+
+        return false;
       });
 
       if (hasModalMutation) {
@@ -198,6 +216,8 @@ export class AutoModalHandler {
     this.observer.observe(document.body, {
       childList: true,
       subtree: true,
+      attributes: true,
+      attributeFilter: ['class', 'style'], // Watch for class and style changes
     });
   }
 

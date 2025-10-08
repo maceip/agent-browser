@@ -3,12 +3,14 @@
   "version": "0.1.0",
   "type": "module",
   "scripts": {
-    "build": "bun build entrypoints/background.ts --outfile=public/background.js --target=browser && bun build entrypoints/content.ts --outfile=public/content.js --target=browser && bun build entrypoints/offscreen.ts --outfile=public/offscreen.js --target=browser && bun build entrypoints/welcome.ts --outfile=public/welcome.js --target=browser",
-    "watch": "bun build entrypoints/background.ts --outfile=public/background.js --target=browser --watch & bun build entrypoints/content.ts --outfile=public/content.js --target=browser --watch & bun build entrypoints/offscreen.ts --outfile=public/offscreen.js --target=browser --watch & bun build entrypoints/welcome.ts --outfile=public/welcome.js --target=browser --watch",
+    "build": "bun build entrypoints/background.ts --outfile=public/background.js --target=browser && bun build entrypoints/content.ts --outfile=public/content.js --target=browser && bun build entrypoints/offscreen.ts --outfile=public/offscreen.js --target=browser && bun build entrypoints/welcome.ts --outfile=public/welcome.js --target=browser && bun build entrypoints/llm-worker.ts --outfile=public/llm-worker.js --target=browser",
+    "watch": "bun build entrypoints/background.ts --outfile=public/background.js --target=browser --watch & bun build entrypoints/content.ts --outfile=public/content.js --target=browser --watch & bun build entrypoints/offscreen.ts --outfile=public/offscreen.js --target=browser --watch & bun build entrypoints/welcome.ts --outfile=public/welcome.js --target=browser --watch & bun build entrypoints/llm-worker.ts --outfile=public/llm-worker.js --target=browser --watch",
     "clean": "rm -rf public/*.js"
   },
   "dependencies": {
-    "@mediapipe/tasks-genai": "^0.10.25"
+    "@mediapipe/tasks-genai": "^0.10.25",
+    "immer": "^10.1.3",
+    "rxjs": "^7.8.2"
   },
   "devDependencies": {
     "@types/chrome": "^0.0.268"

@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Modal Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            padding: 40px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 14px 32px;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background: #5568d3;
+        }
+
+        .info-box {
+            background: #f0f4ff;
+            border-left: 4px solid #667eea;
+            padding: 16px;
+            margin-bottom: 30px;
+            border-radius: 4px;
+        }
+
+        .info-box p {
+            margin: 4px 0;
+            font-size: 14px;
+            color: #555;
+        }
+
+        /* Modal Styles */
+        .modal-backdrop {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9998;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 32px;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 90%;
+            display: none;
+            z-index: 9999;
+            animation: slideUp 0.3s;
+        }
+
+        .modal.show,
+        .modal-backdrop.show {
+            display: block;
+        }
+
+        .modal h2 {
+            margin-bottom: 16px;
+            color: #333;
+        }
+
+        .modal p {
+            color: #666;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .modal-buttons button {
+            padding: 10px 24px;
+            font-size: 14px;
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .close-button {
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            color: #999;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .close-button:hover {
+            color: #333;
+            background: #f0f0f0;
+            border-radius: 4px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideUp {
+            from {
+                transform: translate(-50%, -40%);
+                opacity: 0;
+            }
+            to {
+                transform: translate(-50%, -50%);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Dynamic Modal Test</h1>
+        <p class="subtitle">Each page load presents a different modal challenge</p>
+
+        <div class="info-box" id="modalInfo">
+            <p><strong>Current Challenge:</strong> <span id="challengeType">Loading...</span></p>
+            <p><strong>Modal Type:</strong> <span id="modalType">Loading...</span></p>
+            <p><strong>Dismissal Method:</strong> <span id="dismissMethod">Loading...</span></p>
+        </div>
+
+        <form id="testForm">
+            <div class="form-group">
+                <label for="name">Full Name</label>
+                <input type="text" id="name" name="name" required>
+            </div>
+
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" id="email" name="email" required>
+            </div>
+
+            <div class="form-group">
+                <label for="phone">Phone Number</label>
+                <input type="text" id="phone" name="phone">
+            </div>
+
+            <div class="form-group">
+                <label for="country">Country</label>
+                <select id="country" name="country">
+                    <option value="">Select a country</option>
+                    <option value="us">United States</option>
+                    <option value="uk">United Kingdom</option>
+                    <option value="ca">Canada</option>
+                    <option value="au">Australia</option>
+                    <option value="other">Other</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="message">Message</label>
+                <textarea id="message" name="message" rows="4"></textarea>
+            </div>
+
+            <button type="submit">Submit Form</button>
+        </form>
+    </div>
+
+    <!-- Modal Backdrop -->
+    <div class="modal-backdrop" id="backdrop"></div>
+
+    <!-- Modal Container -->
+    <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+        <button class="close-button" id="closeBtn" aria-label="Close modal">×</button>
+        <h2 id="modalTitle">Modal Title</h2>
+        <p id="modalContent">Modal content goes here.</p>
+        <div class="modal-buttons">
+            <button class="btn-secondary" id="declineBtn">Decline</button>
+            <button id="acceptBtn">Accept</button>
+        </div>
+    </div>
+
+    <script>
+        // Modal configuration variants
+        const modalVariants = [
+            {
+                type: 'cookie-consent',
+                title: 'Cookie Consent',
+                content: 'We use cookies to enhance your browsing experience. By continuing to use this site, you agree to our use of cookies.',
+                className: 'cookie-consent-modal',
+                acceptText: 'Accept All Cookies',
+                declineText: 'Decline',
+                hasClose: true,
+                backdropDismiss: false,
+                escDismiss: true,
+                zIndex: 9999,
+                delay: 1000
+            },
+            {
+                type: 'newsletter',
+                title: 'Subscribe to Our Newsletter',
+                content: 'Get weekly updates delivered to your inbox. Join 10,000+ subscribers who trust our content.',
+                className: 'newsletter-popup',
+                acceptText: 'Subscribe',
+                declineText: 'No Thanks',
+                hasClose: true,
+                backdropDismiss: true,
+                escDismiss: true,
+                zIndex: 1000,
+                delay: 2000
+            },
+            {
+                type: 'age-verification',
+                title: 'Age Verification Required',
+                content: 'You must be 21 or older to access this website. Please confirm your age to continue.',
+                className: 'age-verify-dialog',
+                acceptText: 'I am 21+',
+                declineText: 'Exit',
+                hasClose: false,
+                backdropDismiss: false,
+                escDismiss: false,
+                zIndex: 99999,
+                delay: 500
+            },
+            {
+                type: 'gdpr',
+                title: 'Privacy & Data Protection',
+                content: 'In accordance with GDPR, we need your consent to process your personal data. You can customize your preferences at any time.',
+                className: 'gdpr-notice',
+                acceptText: 'Accept All',
+                declineText: 'Customize',
+                hasClose: true,
+                backdropDismiss: false,
+                escDismiss: true,
+                zIndex: 5000,
+                delay: 1500
+            },
+            {
+                type: 'promo',
+                title: '🎉 Limited Time Offer!',
+                content: 'Get 50% off your first purchase! This exclusive deal is only available for the next 24 hours.',
+                className: 'promo-overlay',
+                acceptText: 'Claim Offer',
+                declineText: 'Maybe Later',
+                hasClose: true,
+                backdropDismiss: true,
+                escDismiss: true,
+                zIndex: 2000,
+                delay: 3000
+            },
+            {
+                type: 'survey',
+                title: 'Quick Feedback',
+                content: 'Help us improve! Take a 30-second survey and get a chance to win a $100 gift card.',
+                className: 'survey-modal',
+                acceptText: 'Take Survey',
+                declineText: 'Skip',
+                hasClose: true,
+                backdropDismiss: true,
+                escDismiss: true,
+                zIndex: 3000,
+                delay: 4000
+            }
+        ];
+
+        // Randomly select a modal variant
+        const variant = modalVariants[Math.floor(Math.random() * modalVariants.length)];
+
+        // Get elements
+        const modal = document.getElementById('modal');
+        const backdrop = document.getElementById('backdrop');
+        const modalTitle = document.getElementById('modalTitle');
+        const modalContent = document.getElementById('modalContent');
+        const closeBtn = document.getElementById('closeBtn');
+        const acceptBtn = document.getElementById('acceptBtn');
+        const declineBtn = document.getElementById('declineBtn');
+
+        // Update info box
+        document.getElementById('challengeType').textContent = variant.type.replace('-', ' ').toUpperCase();
+        document.getElementById('modalType').textContent = variant.className;
+
+        const dismissMethods = [];
+        if (variant.hasClose) dismissMethods.push('Close button');
+        if (variant.backdropDismiss) dismissMethods.push('Backdrop click');
+        if (variant.escDismiss) dismissMethods.push('ESC key');
+        dismissMethods.push('Accept/Decline buttons');
+        document.getElementById('dismissMethod').textContent = dismissMethods.join(', ');
+
+        // Apply variant configuration
+        modalTitle.textContent = variant.title;
+        modalContent.textContent = variant.content;
+        acceptBtn.textContent = variant.acceptText;
+        declineBtn.textContent = variant.declineText;
+        modal.classList.add(variant.className);
+        modal.style.zIndex = variant.zIndex;
+        backdrop.style.zIndex = variant.zIndex - 1;
+
+        // Show/hide close button
+        if (!variant.hasClose) {
+            closeBtn.style.display = 'none';
+        }
+
+        // Dismissal functions
+        function dismissModal() {
+            modal.classList.remove('show');
+            backdrop.classList.remove('show');
+            console.log('[Modal Test] Modal dismissed');
+        }
+
+        // Event listeners
+        if (variant.hasClose) {
+            closeBtn.addEventListener('click', dismissModal);
+        }
+
+        acceptBtn.addEventListener('click', () => {
+            console.log('[Modal Test] User accepted');
+            dismissModal();
+        });
+
+        declineBtn.addEventListener('click', () => {
+            console.log('[Modal Test] User declined');
+            dismissModal();
+        });
+
+        if (variant.backdropDismiss) {
+            backdrop.addEventListener('click', dismissModal);
+        }
+
+        if (variant.escDismiss) {
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    dismissModal();
+                }
+            });
+        }
+
+        // Form submission
+        document.getElementById('testForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            alert('Form submitted successfully!');
+        });
+
+        // Show modal after delay
+        setTimeout(() => {
+            modal.classList.add('show');
+            backdrop.classList.add('show');
+            console.log('[Modal Test] Modal shown:', variant.type);
+        }, variant.delay);
+
+        console.log('[Modal Test] Loaded variant:', variant.type);
+        console.log('[Modal Test] Configuration:', {
+            hasClose: variant.hasClose,
+            backdropDismiss: variant.backdropDismiss,
+            escDismiss: variant.escDismiss,
+            zIndex: variant.zIndex,
+            delay: variant.delay
+        });
+    </script>
+</body>
+</html>

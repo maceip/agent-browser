@@ -24,7 +24,7 @@ Load the extension:
 
 Register MCP server with Claude:
 ```bash
-claude mcp add agent-browser /usr/local/bin/agent-browser-server --env MCP_STDIO=1
+claude mcp add agent-browser /usr/local/bin/agent-browser-server
 ```
 
 Test: Ask Claude to navigate to a website and take a screenshot.

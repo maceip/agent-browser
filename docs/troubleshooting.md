@@ -12,7 +12,7 @@ Use this checklist when the installation scripts report errors, the extension ba
 ## Common issues
 
 - **Native messaging manifest missing** — ensure `com.agentbrowser.native.json` exists in each Chrome profile you are using
-- **Badge stuck on red ✗** — the Rust server is unreachable; re-run `./scripts/launch-browser.sh` or start `agent-browser-server` manually with `MCP_TCP=1`
+- **Badge stuck on red ✗** — the Rust server is unreachable; check that the server process is running or start it manually
 - **Magic links not detected** — confirm the email provider configuration is complete (badge tooltip shows the stored address) and that you are signed in to webmail
 - **Passkey authorization expired** — rerun the authorization flow via the welcome screen or call `passkey_authorize`
 

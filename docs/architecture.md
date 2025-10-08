@@ -60,8 +60,8 @@ graph TB
 
 The Rust server exposes two MCP interfaces:
 
-- **stdio**: Used by Claude Desktop/Code via `MCP_STDIO=1`
-- **TCP**: Available on `localhost:8084` via `MCP_TCP=1`
+- **stdio**: Default mode for Claude Desktop/Code integration
+- **TCP**: Available on `localhost:8084` when `MCP_TCP=1` is set (for development/debugging)
 
 Both interfaces accept JSON-RPC requests and route them to the Chrome extension via WebSocket.
 

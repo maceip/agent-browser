@@ -11,36 +11,16 @@ import indexHtml from './index.html';
 
 const PORT = 3500;
 
-Bun.serve({
+const server = Bun.serve({
   port: PORT,
-  development: {
-    hmr: true,
+
+  routes: {
+    '/': indexHtml,
+    '/story': indexHtml,
   },
 
-  async fetch(req) {
-    const url = new URL(req.url);
-
-    // Serve main page (both / and /story use same HTML)
-    if (url.pathname === '/' || url.pathname === '/story') {
-      return new Response(indexHtml, {
-        headers: {
-          'Content-Type': 'text/html',
-        },
-      });
-    }
-
-    // Serve app.tsx (Bun will transpile and bundle)
-    if (url.pathname === '/app.tsx') {
-      const file = Bun.file('./app.tsx');
-      return new Response(file, {
-        headers: {
-          'Content-Type': 'application/javascript',
-        },
-      });
-    }
-
-    // 404
-    return new Response('Not Found', { status: 404 });
+  development: {
+    hmr: true,
   },
 });
 

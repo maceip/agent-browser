@@ -168,20 +168,30 @@ emailInput.addEventListener('input', () => {
   }
 });
 
+// Add Enter key handler to email input
+emailInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter' && !continueBtn.disabled) {
+    continueBtn.click();
+  }
+});
+
 // ============================================================================
 // Step Navigation
 // ============================================================================
 
-continueBtn.addEventListener('click', () => {
+continueBtn.addEventListener('click', async () => {
   if (!currentProvider) return;
 
-  // Move to step 2
-  step1.classList.remove('active');
-  step2.classList.add('active');
+  // Skip step 2 - directly open provider login in new tab
+  const tab = await chrome.tabs.create({
+    url: currentProvider.loginUrl,
+    active: true
+  });
 
-  // Update auth provider names
-  authProvider.textContent = currentProvider.name;
-  authProviderName.textContent = currentProvider.name;
+  authTabId = tab.id || null;
+
+  // Start monitoring for authentication immediately
+  startAuthMonitoring();
 });
 
 backBtn.addEventListener('click', () => {
@@ -280,6 +290,7 @@ async function saveEmailProviderConfig() {
 }
 
 function showSuccessStep() {
+  step1.classList.remove('active');
   step2.classList.remove('active');
   step3.classList.add('active');
 
