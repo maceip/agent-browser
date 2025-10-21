@@ -11,11 +11,11 @@
  * - MagicLinkManager: Email automation
  */
 
-import { BackgroundService } from './background';
+import { BackgroundService } from './background/background-service';
 
 // Initialize and start the background service
 const service = new BackgroundService();
-service.initialize().catch(error => {
+service.initialize().catch((error: unknown) => {
   console.error('[Background] Failed to initialize service:', error);
 });
 

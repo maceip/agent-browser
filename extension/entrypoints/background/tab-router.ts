@@ -41,16 +41,23 @@ export class TabRouter {
           tab = newTab;
 
           // Wait for navigation to complete before injecting content script
-          await this.waitForTabReady(tab.id);
+          if (tab.id) {
+            await this.waitForTabReady(tab.id);
+          }
         } else {
           throw new Error('No valid tab found - current tab cannot run content scripts (chrome:// or extension pages)');
         }
       }
 
+      // Ensure tab.id is defined
+      if (!tab.id) {
+        throw new Error('Tab ID is undefined');
+      }
+
       // Add tab to automation group if this is a navigation command (but don't fail on error)
       if (message.method === 'navigate') {
         try {
-          await this.addTabToAutomationGroup(tab.id!);
+          await this.addTabToAutomationGroup(tab.id);
         } catch (err) {
           // Tab groups might not be available in all window types - ignore error
           console.log('[TabRouter] Could not add to tab group (expected in some window types)');
@@ -59,7 +66,7 @@ export class TabRouter {
 
       // For navigate commands, ensure we wait for the page to load
       if (message.method === 'navigate') {
-        await this.waitForTabReady(tab.id!);
+        await this.waitForTabReady(tab.id);
       }
 
       // Check if content script is loaded

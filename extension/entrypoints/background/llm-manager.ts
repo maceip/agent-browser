@@ -15,10 +15,10 @@ export class LlmManager {
   async setupOffscreenDocument(): Promise<void> {
     const offscreenUrl = chrome.runtime.getURL('offscreen.html');
     const existingContexts = await chrome.runtime.getContexts({
-      contextTypes: ['OFFSCREEN_DOCUMENT'],
+      contextTypes: ['OFFSCREEN_DOCUMENT' as chrome.runtime.ContextType],
     });
 
-    if (existingContexts.length > 0) {
+    if (existingContexts && existingContexts.length > 0) {
       console.log('[LlmManager] Offscreen document already exists');
       return;
     }
