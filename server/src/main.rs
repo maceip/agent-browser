@@ -152,316 +152,84 @@ impl ServerState {
 }
 
 // ============================================================================
-// MCP Request Handler
+// MCP Request Handler (Thin Proxy)
 // ============================================================================
 
 async fn handle_mcp_request(req: JsonRpcReq, state: Arc<ServerState>) -> JsonRpcRes {
     let id = req.id.clone();
-    info!("MCP request: method={}", req.method);
+    info!("MCP request (proxying to extension): method={}", req.method);
 
-    // Handle built-in methods
-    match req.method.as_str() {
-        "ping" => {
-            JsonRpcRes::ok(id, serde_json::json!({"ok": true}))
-        }
-        "initialize" => {
-            JsonRpcRes::ok(
-                id,
-                serde_json::json!({
-                    "protocolVersion": "2024-11-05",
-                    "capabilities": {
-                        "tools": {}
-                    },
-                    "serverInfo": {
-                        "name": "agent-browser",
-                        "version": "0.1.0"
-                    }
-                }),
-            )
-        }
-        "tools/list" => {
-            JsonRpcRes::ok(
-                id,
-                serde_json::json!({
-                    "tools": [
-                        {
-                            "name": "playwright_navigate",
-                            "description": "Navigate to a URL in the browser",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "url": {
-                                        "type": "string",
-                                        "description": "The URL to navigate to"
-                                    }
-                                },
-                                "required": ["url"]
-                            }
-                        },
-                        {
-                            "name": "playwright_click",
-                            "description": "Click an element on the page",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "selector": {
-                                        "type": "string",
-                                        "description": "CSS selector for the element to click"
-                                    }
-                                },
-                                "required": ["selector"]
-                            }
-                        },
-                        {
-                            "name": "playwright_fill",
-                            "description": "Fill out an input field",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "selector": {
-                                        "type": "string",
-                                        "description": "CSS selector for the input element"
-                                    },
-                                    "value": {
-                                        "type": "string",
-                                        "description": "The text to type into the input"
-                                    }
-                                },
-                                "required": ["selector", "value"]
-                            }
-                        },
-                        {
-                            "name": "playwright_screenshot",
-                            "description": "Take a screenshot of the current page or a specific element",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "selector": {
-                                        "type": "string",
-                                        "description": "Optional CSS selector to screenshot a specific element"
-                                    },
-                                    "fullPage": {
-                                        "type": "boolean",
-                                        "description": "Whether to take a full page screenshot"
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "name": "passkey_enable",
-                            "description": "Enable or disable passkey automation for WebAuthn flows",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "enabled": {
-                                        "type": "boolean",
-                                        "description": "Whether to enable passkey automation"
-                                    }
-                                },
-                                "required": ["enabled"]
-                            }
-                        },
-                        {
-                            "name": "passkey_status",
-                            "description": "Get the current status of passkey automation",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {}
-                            }
-                        },
-                        {
-                            "name": "passkey_list",
-                            "description": "List all stored passkey credentials",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {}
-                            }
-                        },
-                        {
-                            "name": "passkey_clear",
-                            "description": "Clear all stored passkey credentials",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {}
-                            }
-                        },
-                        {
-                            "name": "passkey_authorize",
-                            "description": "Authorize AI agent to use passkeys for a limited time (requires Touch ID on macOS)",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "duration_hours": {
-                                        "type": "number",
-                                        "description": "Number of hours to authorize access (default: 8)"
-                                    }
-                                },
-                                "required": []
-                            }
-                        },
-                        {
-                            "name": "passkey_authorization_status",
-                            "description": "Check if AI agent is currently authorized to use passkeys",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {}
-                            }
-                        },
-                        {
-                            "name": "playwright_detect_modal",
-                            "description": "Detect if a modal, popup, or overlay is present on the page",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "minZIndex": {
-                                        "type": "number",
-                                        "description": "Minimum z-index to consider (default: 100)"
-                                    },
-                                    "includeHidden": {
-                                        "type": "boolean",
-                                        "description": "Include hidden modals (default: false)"
-                                    },
-                                    "maxResults": {
-                                        "type": "number",
-                                        "description": "Maximum number of modals to detect (default: 1)"
-                                    }
-                                }
-                            }
-                        },
-                        {
-                            "name": "playwright_dismiss_modal",
-                            "description": "Attempt to dismiss any detected modals on the page",
-                            "inputSchema": {
-                                "type": "object",
-                                "properties": {
-                                    "strategy": {
-                                        "type": "string",
-                                        "enum": ["auto", "button", "escape", "backdrop", "remove"],
-                                        "description": "Dismissal strategy: auto tries all methods, button clicks dismiss button, escape presses ESC, backdrop clicks overlay, remove forcibly removes from DOM (default: auto)"
-                                    },
-                                    "timeout": {
-                                        "type": "number",
-                                        "description": "Timeout in milliseconds (default: 5000)"
-                                    },
-                                    "waitAfter": {
-                                        "type": "number",
-                                        "description": "Wait time after dismissal to verify (default: 500)"
-                                    }
-                                }
-                            }
-                        }
-                    ]
-                }),
-            )
-        }
-        "tools/call" => {
-            // Extract tool name and arguments from MCP format
-            let params = req.params.unwrap_or(serde_json::Value::Null);
-            let tool_name = params
-                .get("name")
-                .and_then(|v| v.as_str())
-                .ok_or_else(|| "Missing tool name".to_string());
-
-            let arguments = params
-                .get("arguments")
-                .cloned()
-                .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
-
+    // Handle only credential store operations server-side
+    // Everything else is forwarded to the extension
+    if req.method == "tools/call" {
+        let params = req.params.as_ref().unwrap_or(&serde_json::Value::Null);
+        if let Some(tool_name) = params.get("name").and_then(|v| v.as_str()) {
             match tool_name {
-                Ok(name) => {
-                    // Handle server-side tools (don't forward to extension)
-                    match name {
-                        "passkey_authorize" => {
-                            let duration_hours = arguments
-                                .get("duration_hours")
-                                .and_then(|v| v.as_f64())
-                                .unwrap_or(8.0);
+                "passkey_authorize" => {
+                    let arguments = params
+                        .get("arguments")
+                        .cloned()
+                        .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
 
-                            let duration = std::time::Duration::from_secs((duration_hours * 3600.0) as u64);
+                    let duration_hours = arguments
+                        .get("duration_hours")
+                        .and_then(|v| v.as_f64())
+                        .unwrap_or(8.0);
 
-                            return match state.credential_store.authorize_session(duration).await {
-                                Ok(_) => JsonRpcRes::ok(
-                                    id,
-                                    serde_json::json!({
-                                        "authorized": true,
-                                        "duration_hours": duration_hours,
-                                        "message": format!("Authorized for {} hours", duration_hours)
-                                    }),
-                                ),
-                                Err(e) => JsonRpcRes::err(id, -32000, e.to_string(), None),
-                            };
-                        }
-                        "passkey_authorization_status" => {
-                            let status = state.credential_store.get_authorization_status().await;
-                            return JsonRpcRes::ok(id, status);
-                        }
-                        _ => {}
-                    }
+                    let duration = std::time::Duration::from_secs((duration_hours * 3600.0) as u64);
 
-                    // Map MCP tool names to internal command names
-                    let internal_method = match name {
-                        "playwright_navigate" => "navigate",
-                        "playwright_click" => "click",
-                        "playwright_fill" => "type",
-                        "playwright_screenshot" => "screenshot",
-                        "playwright_detect_modal" => "detect_modal",
-                        "playwright_dismiss_modal" => "dismiss_modal",
-                        "passkey_enable" => "passkey_enable",
-                        "passkey_status" => "passkey_status",
-                        "passkey_list" => "passkey_list",
-                        "passkey_clear" => "passkey_clear",
-                        _ => {
-                            return JsonRpcRes::err(
-                                id,
-                                -32601,
-                                format!("Unknown tool: {}", name),
-                                None,
-                            );
-                        }
-                    };
-
-                    // Special handling for playwright_fill -> type
-                    let internal_params = if name == "playwright_fill" {
-                        // Rename "value" to "text" for internal type command
-                        let mut params_map = match arguments {
-                            serde_json::Value::Object(map) => map,
-                            _ => serde_json::Map::new(),
-                        };
-                        if let Some(value) = params_map.remove("value") {
-                            params_map.insert("text".to_string(), value);
-                        }
-                        serde_json::Value::Object(params_map)
-                    } else {
-                        arguments
-                    };
-
-                    // Forward to extension
-                    match state.send_to_extension(internal_method, internal_params).await {
-                        Ok(result) => JsonRpcRes::ok(
+                    return match state.credential_store.authorize_session(duration).await {
+                        Ok(_) => JsonRpcRes::ok(
                             id,
                             serde_json::json!({
                                 "content": [
                                     {
                                         "type": "text",
-                                        "text": serde_json::to_string_pretty(&result).unwrap_or_else(|_| "{}".to_string())
+                                        "text": serde_json::json!({
+                                            "authorized": true,
+                                            "duration_hours": duration_hours,
+                                            "message": format!("Authorized for {} hours", duration_hours)
+                                        }).to_string()
                                     }
                                 ]
                             }),
                         ),
-                        Err(e) => JsonRpcRes::err(id, -32000, e, None),
-                    }
+                        Err(e) => JsonRpcRes::err(id, -32000, e.to_string(), None),
+                    };
                 }
-                Err(e) => JsonRpcRes::err(id, -32602, e, None),
+                "passkey_authorization_status" => {
+                    let status = state.credential_store.get_authorization_status().await;
+                    return JsonRpcRes::ok(
+                        id,
+                        serde_json::json!({
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": serde_json::to_string(&status).unwrap_or_else(|_| "{}".to_string())
+                                }
+                            ]
+                        }),
+                    );
+                }
+                _ => {}
             }
         }
-        _ => {
-            // Forward to extension (for raw method calls)
-            let params = req.params.unwrap_or(serde_json::Value::Null);
-            match state.send_to_extension(&req.method, params).await {
-                Ok(result) => JsonRpcRes::ok(id, result),
-                Err(e) => JsonRpcRes::err(id, -32000, e, None),
+    }
+
+    // Forward all other requests to extension as JSON-RPC
+    let req_json = serde_json::to_value(&req).unwrap_or(serde_json::Value::Null);
+    match state.send_to_extension("mcp_request", req_json).await {
+        Ok(result) => {
+            // Extension returns a full JSON-RPC response
+            // Try to parse it as JsonRpcRes
+            if let Ok(response) = serde_json::from_value::<JsonRpcRes>(result.clone()) {
+                response
+            } else {
+                // Fallback: wrap result as success response
+                JsonRpcRes::ok(id, result)
             }
         }
+        Err(e) => JsonRpcRes::err(id, -32000, e, None),
     }
 }
 

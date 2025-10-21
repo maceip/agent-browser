@@ -6,10 +6,12 @@
  * - Auto-inject content script if dead
  * - Reconnect if disconnected
  * - Handle WebAuthn passkey automation
+ * - MCP server implementation
  */
 
 import { WebAuthnProxy } from '../lib/webauthn/proxy';
 import { getEmailInboxAutomation } from '../lib/automation/email-inbox';
+import { McpServer } from '../lib/mcp';
 
 // ============================================================================
 // Types
@@ -98,6 +100,9 @@ let webAuthnProxy: WebAuthnProxy | null = null;
 
 // Offscreen document
 let offscreenReady = false;
+
+// MCP Server
+let mcpServer: McpServer | null = null;
 
 // Icon animation removed - using static icon from manifest only
 
@@ -538,6 +543,129 @@ async function addTabToAutomationGroup(tabId: number) {
 }
 
 // ============================================================================
+// MCP Server Initialization
+// ============================================================================
+
+function initializeMcpServer() {
+  // Tab router - routes commands to content script
+  const tabRouter = async (method: string, args: any) => {
+    const message = {
+      id: crypto.randomUUID(),
+      method,
+      params: args,
+    };
+    const response = await routeToTab(message);
+    if (response.success) {
+      return response.result;
+    } else {
+      throw new Error(response.error || 'Tab routing failed');
+    }
+  };
+
+  // Screenshot handler
+  const screenshotHandler = async (args: any) => {
+    const message = {
+      id: crypto.randomUUID(),
+      method: 'screenshot',
+      params: args,
+    };
+    const response = await handleScreenshot(message);
+    if (response.success) {
+      return response.result;
+    } else {
+      throw new Error(response.error || 'Screenshot failed');
+    }
+  };
+
+  // Passkey handler
+  const passkeyHandler = async (operation: string, args: any) => {
+    const message = {
+      id: crypto.randomUUID(),
+      method: `passkey_${operation}`,
+      params: args,
+    };
+
+    let response;
+    switch (operation) {
+      case 'enable':
+        response = await handlePasskeyEnable(message);
+        break;
+      case 'status':
+        response = await handlePasskeyStatus(message);
+        break;
+      case 'list':
+        response = await handlePasskeyList(message);
+        break;
+      case 'clear':
+        response = await handlePasskeyClear(message);
+        break;
+      default:
+        throw new Error(`Unknown passkey operation: ${operation}`);
+    }
+
+    if (response.success) {
+      return response.result;
+    } else {
+      throw new Error(response.error || 'Passkey operation failed');
+    }
+  };
+
+  // Credential store proxy - sends requests back to Rust server
+  const credentialStoreProxy = async (operation: string, args: any) => {
+    // For now, these operations are still handled by the Rust server
+    // We send a special message type back to the server
+    const message = {
+      type: 'credential_store_operation',
+      operation,
+      args,
+    };
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // Send request and wait for response
+      // Note: This is a simplified version - in production you'd want proper request/response matching
+      return new Promise((resolve, reject) => {
+        const requestId = crypto.randomUUID();
+        const handler = (event: MessageEvent) => {
+          try {
+            const response = JSON.parse(event.data);
+            if (response.id === requestId) {
+              ws?.removeEventListener('message', handler);
+              if (response.success) {
+                resolve(response.result);
+              } else {
+                reject(new Error(response.error || 'Credential operation failed'));
+              }
+            }
+          } catch (e) {
+            // Ignore parse errors
+          }
+        };
+
+        ws?.addEventListener('message', handler);
+        ws?.send(JSON.stringify({ ...message, id: requestId }));
+
+        // Timeout after 10 seconds
+        setTimeout(() => {
+          ws?.removeEventListener('message', handler);
+          reject(new Error('Credential operation timeout'));
+        }, 10000);
+      });
+    } else {
+      throw new Error('WebSocket not connected');
+    }
+  };
+
+  mcpServer = new McpServer(
+    tabRouter,
+    screenshotHandler,
+    passkeyHandler,
+    credentialStoreProxy
+  );
+
+  console.log('[Background] MCP server initialized');
+}
+
+// ============================================================================
 // WebSocket Connection
 // ============================================================================
 
@@ -563,39 +691,80 @@ function connect() {
 
   ws.onmessage = async (event) => {
     try {
-      const message: Message = JSON.parse(event.data);
-      console.log('[Background] Received message:', message);
+      const message = JSON.parse(event.data);
+      console.log('[Background] Received message from server:', message);
 
-      // Set active command badge
-      if (message.method === 'navigate' || message.method === 'click' ||
-          message.method === 'type' || message.method === 'wait' ||
-          message.method === 'screenshot') {
-        setBadgeState({ activeCommand: message.method as CommandType });
+      // Initialize MCP server if not already initialized
+      if (!mcpServer) {
+        initializeMcpServer();
       }
 
-      // Handle commands that must run in background
-      let response;
-      if (message.method === 'screenshot') {
-        response = await handleScreenshot(message);
-      } else if (message.method === 'passkey_enable') {
-        response = await handlePasskeyEnable(message);
-      } else if (message.method === 'passkey_status') {
-        response = await handlePasskeyStatus(message);
-      } else if (message.method === 'passkey_list') {
-        response = await handlePasskeyList(message);
-      } else if (message.method === 'passkey_clear') {
-        response = await handlePasskeyClear(message);
+      // Check if this is an MCP request forwarded from Rust server
+      if (message.method === 'mcp_request' && message.params) {
+        // This is a JSON-RPC request forwarded from the Rust server
+        const mcpRequest = message.params;
+        console.log('[Background] Processing forwarded MCP request:', mcpRequest);
+
+        // Set active command badge for known commands
+        if (mcpRequest.method === 'tools/call' && mcpRequest.params?.name) {
+          const toolName = mcpRequest.params.name;
+          const commandMethod = toolName.replace('playwright_', '');
+          if (['navigate', 'click', 'fill', 'screenshot'].includes(commandMethod)) {
+            const badgeCommand = commandMethod === 'fill' ? 'type' : commandMethod;
+            setBadgeState({ activeCommand: badgeCommand as CommandType });
+          }
+        }
+
+        // Handle the MCP request
+        const mcpResponse = await mcpServer!.handleRequest(mcpRequest);
+
+        // Clear active command badge
+        setBadgeState({ activeCommand: null });
+
+        // Send the MCP response back (wrapped in our protocol)
+        const response = {
+          id: message.id,
+          success: true,
+          result: mcpResponse,
+        };
+
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(response));
+        }
       } else {
-        // Route to content script for other commands
-        response = await routeToTab(message);
-      }
+        // Legacy message format or other message types
+        // This handles backward compatibility
+        const request = message;
 
-      // Clear active command badge
-      setBadgeState({ activeCommand: null });
+        // Set active command badge for known commands
+        if (request.method && (
+          request.method === 'navigate' ||
+          request.method === 'click' ||
+          request.method === 'type' ||
+          request.method === 'wait' ||
+          request.method === 'screenshot' ||
+          request.method === 'tools/call'
+        )) {
+          // For tools/call, extract the actual tool name
+          const commandMethod = request.method === 'tools/call'
+            ? request.params?.name?.replace('playwright_', '') || null
+            : request.method;
 
-      // Send response back through WebSocket
-      if (ws && ws.readyState === WebSocket.OPEN) {
-        ws.send(JSON.stringify(response));
+          if (commandMethod && ['navigate', 'click', 'type', 'screenshot'].includes(commandMethod)) {
+            setBadgeState({ activeCommand: commandMethod as CommandType });
+          }
+        }
+
+        // Handle request using MCP server
+        const response = await mcpServer!.handleRequest(request);
+
+        // Clear active command badge
+        setBadgeState({ activeCommand: null });
+
+        // Send response back through WebSocket
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify(response));
+        }
       }
     } catch (error) {
       console.error('[Background] Error handling message:', error);
@@ -611,6 +780,16 @@ function connect() {
           setBadgeState({ errorType: null, errorMessage: undefined });
         }
       }, 3000);
+
+      // Send error response
+      if (ws && ws.readyState === WebSocket.OPEN) {
+        const errorResponse = {
+          id: null,
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error',
+        };
+        ws.send(JSON.stringify(errorResponse));
+      }
     }
   };
 
