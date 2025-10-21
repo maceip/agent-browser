@@ -11,6 +11,7 @@ import { PasskeyManager } from './passkey-manager';
 import { LlmManager } from './llm-manager';
 import { MagicLinkManager } from './magic-link-manager';
 import { ScreenshotHandler } from './screenshot-handler';
+import { PageTracker } from './page-tracker';
 
 export class BackgroundService {
   private badgeManager: BadgeManager;
@@ -20,6 +21,7 @@ export class BackgroundService {
   private llmManager: LlmManager;
   private magicLinkManager: MagicLinkManager;
   private screenshotHandler: ScreenshotHandler;
+  private pageTracker: PageTracker;
   private mcpServer: McpServer | null = null;
 
   constructor() {
@@ -31,6 +33,7 @@ export class BackgroundService {
     this.llmManager = new LlmManager(this.badgeManager);
     this.magicLinkManager = new MagicLinkManager(this.badgeManager);
     this.screenshotHandler = new ScreenshotHandler();
+    this.pageTracker = new PageTracker();
   }
 
   /**
@@ -38,6 +41,9 @@ export class BackgroundService {
    */
   async initialize(): Promise<void> {
     console.log('[BackgroundService] Initializing...');
+
+    // Initialize page tracker database
+    await this.pageTracker.initialize();
 
     // Initialize passkey manager
     await this.passkeyManager.initialize();
@@ -163,7 +169,10 @@ export class BackgroundService {
     // Give MCP server to WebSocket client
     this.websocketClient.setMcpServer(this.mcpServer);
 
-    console.log('[BackgroundService] MCP server initialized');
+    // Register page tracker with MCP server for dynamic tools
+    this.mcpServer.setPageTracker(this.pageTracker);
+
+    console.log('[BackgroundService] MCP server initialized with dynamic tools support');
   }
 
   /**
@@ -244,6 +253,18 @@ export class BackgroundService {
     // Handle check LLM status from popup
     if (message.type === 'check_llm_status') {
       sendResponse(this.llmManager.getStatus());
+      return;
+    }
+
+    // Handle page visit tracking from content script
+    if (message.type === 'page_visit') {
+      this.pageTracker.recordVisit(message.url).then(result => {
+        console.log(`[BackgroundService] Page visit tracked: ${result.toolName}`);
+        sendResponse({ success: true, ...result });
+      }).catch(error => {
+        console.error('[BackgroundService] Error tracking page visit:', error);
+        sendResponse({ success: false, error: error.message });
+      });
       return;
     }
 

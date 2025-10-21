@@ -307,3 +307,15 @@ try {
 console.log('[Content] Script loaded:', window.location.href);
 console.log('[Content] Magic link detection active');
 console.log('[Content] Auto-modal handler enabled');
+
+// Track page visit for dynamic MCP tools
+chrome.runtime.sendMessage({
+  type: 'page_visit',
+  url: window.location.href,
+}).then(response => {
+  if (response?.success) {
+    console.log(`[Content] Page visit tracked: ${response.toolName} for ${response.effectiveTLD}`);
+  }
+}).catch(error => {
+  console.error('[Content] Failed to track page visit:', error);
+});

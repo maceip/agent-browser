@@ -10,4 +10,5 @@ export * from './passkey-manager';
 export * from './llm-manager';
 export * from './magic-link-manager';
 export * from './screenshot-handler';
+export * from './page-tracker';
 export * from './background-service';
